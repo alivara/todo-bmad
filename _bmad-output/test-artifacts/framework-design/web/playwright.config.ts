@@ -33,11 +33,14 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0, // burn-in flakes surface locally, not masked
   workers: process.env.CI ? 4 : undefined,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+  reporter: process.env.CI
+    ? [['github'], ['html', { open: 'never' }], ['junit', { outputFile: 'test-results/junit.xml' }]]
+    : 'list',
 
   use: {
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure', // keep the trace whenever a test ends failed (incl. after retries)
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     // No global timeout crutch; tests use network-first + fake clock, never waitForTimeout.
   },
 

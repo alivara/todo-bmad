@@ -28,8 +28,9 @@ todo-app/
       support/
         fixtures.ts             <- todo factory, seed/reset [TC1], fake clock [R9]
         contract.ts             <- AD-6 wire-contract assertions [R3]
+        vitest.setup.ts         <- RTL/jest-dom setup for web unit tests
       e2e/
-        create.spec.ts          <- 1.4-E2E-001 core loop (P0)
+        create.spec.ts          <- 1.4-E2E-001 core loop create+view (P0)
         optimistic-rollback.spec.ts  <- 3.2 rollback, the score-9 [R1] (P0)
       integration/
         todos.contract.spec.ts  <- 1.2/1.3 contract at the api boundary (P0)

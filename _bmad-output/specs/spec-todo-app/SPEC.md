@@ -1,6 +1,7 @@
 ---
 id: SPEC-todo-app
 companions:
+  - resolved-decisions.md
   - ../../planning-artifacts/prds/prd-todo-app-2026-07-17/prd.md
   - ../../planning-artifacts/prds/prd-todo-app-2026-07-17/addendum.md
   - ../../planning-artifacts/ux-designs/ux-todo-app-2026-07-17/DESIGN.md
@@ -82,5 +83,6 @@ A first-time user, with no login and no setup, opens the app and completes all f
 
 ## Open Questions
 
-- Testing conventions — framework, coverage expectations, and the unit/integration/e2e split — are being defined by the user in a separate step and are not yet fixed (Architecture "Deferred"). Downstream test and dev work needs them resolved.
-- `prefers-reduced-motion` handling for the bouncy check-off and pop-to-top is undecided (EXPERIENCE note) — flagged for future a11y hardening, not scoped for v1.
+- **`prefers-reduced-motion` handling** for the bouncy check-off and pop-to-top is deliberately deferred to future a11y hardening — v1 always animates (EXPERIENCE note; confirmed deferred by the user). Not scoped for v1.
+
+_Resolved:_ the six AC decisions (relative-time buckets, char-counter threshold, over-cap typing, multi-delete toast, DELETE-commit 5xx, first-load theme) are now binding and captured in `resolved-decisions.md` (RD-1…RD-6). Testing conventions were settled by the completed `bmad-testarch-framework` (design) and `bmad-testarch-test-design` runs.
