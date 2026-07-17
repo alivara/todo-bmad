@@ -1,0 +1,18 @@
+# --- BMAD tooling (installed framework + skills) ---
+# Not committed: each developer installs BMAD themselves. We track deliverables only.
+.claude/
+_bmad/
+.bmad-loop/
+
+# --- Personal / machine-local overrides ---
+**/settings.local.json
+**/*.user.toml
+**/*.user.yaml
+
+# --- BMAD ephemeral / working artifacts (not deliverables) ---
+**/.memlog.md
+_bmad-output/party-mode/
+**/.working/
+
+# --- OS / editor cruft ---
+.DS_Store
