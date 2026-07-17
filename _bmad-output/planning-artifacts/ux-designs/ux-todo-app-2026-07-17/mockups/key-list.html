@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>todo — Key List Screen</title>
+<style>
+/*
+  KEY SCREENS MOCK — Primary "todo" list screen.
+  Illustrates the spine contract; the spine is the source of truth, this mock only illustrates.
+    EXPERIENCE.md → Component Patterns: task row, add input, edit-in-place, undo toast.
+    EXPERIENCE.md → State Patterns: active / completed / editing rows, hover-delete, char-limit counter, undo.
+    DESIGN.md → Colors (Cream & Terracotta light + warm-dark), Typography (rounded/friendly), Components.
+  Inline CSS only. No JS. No external/network assets — renders fully offline.
+*/
+
+:root {
+  /* Cream & Terracotta — LIGHT */
+  --l-base: #F5EFE6;
+  --l-raised: #FFFCF7;
+  --l-ink: #2E2A24;
+  --l-ink-2: #8A8072;
+  --l-ink-muted: #B8AE9E;
+  --l-accent: #c15a34;
+  --l-accent-soft: #E9C9B8;
+  --l-border: #E5DBCC;
+
+  /* Warm DARK (warm charcoal) */
+  --d-base: #221E1A;
+  --d-raised: #2C2722;
+  --d-ink: #F0E9DE;
+  --d-ink-2: #A69C8C;
+  --d-ink-muted: #6E655A;
+  --d-accent: #D97B54;
+  --d-accent-soft: #4A362B;
+  --d-border: #3A332C;
+
+  --font: ui-rounded, 'SF Pro Rounded', 'Nunito', 'Quicksand', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: #e7ded1;
+  color: var(--l-ink);
+  padding: 40px 28px 64px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page-title {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7a6f5f;
+  margin-bottom: 4px;
+}
+.page-sub {
+  text-align: center;
+  font-size: 13px;
+  color: #948a79;
+  margin-bottom: 40px;
+}
+
+/* Vertical stack: big desktop panels, then a mobile row */
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.mobile-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.panel-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.panel-wrap.desktop-panel { max-width: 1040px; }
+.panel-wrap.mobile-panel { width: auto; }
+.panel-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8a8072;
+  margin-bottom: 14px;
+}
+
+/* ---------- FRAMES ---------- */
+.browser {
+  width: 100%;
+  max-width: 1040px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -18px rgba(60,45,30,0.45);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: #e9e0d2;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot.r { background: #e6795f; }
+.dot.y { background: #e7b955; }
+.dot.g { background: #7bb87f; }
+.omnibox {
+  flex: 1;
+  margin-left: 10px;
+  height: 24px;
+  border-radius: 7px;
+  background: #f6efe4;
+  font-size: 12px;
+  color: #9a9080;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+.phone {
+  width: 100%;
+  max-width: 375px;
+  border-radius: 34px;
+  padding: 12px;
+  background: #d9cdba;
+  box-shadow: 0 20px 50px -18px rgba(60,45,30,0.5);
+}
+.phone.dark { background: #17140f; }
+.phone-screen {
+  border-radius: 26px;
+  overflow: hidden;
+  position: relative;
+}
+.notch {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notch::before {
+  content: "";
+  width: 92px; height: 6px;
+  border-radius: 4px;
+  background: rgba(0,0,0,0.18);
+}
+.phone.dark .notch::before { background: rgba(255,255,255,0.15); }
+
+/* ---------- APP (themeable) ---------- */
+.app {
+  position: relative;
+  background: var(--base);
+  color: var(--ink);
+  padding: 22px 26px 30px;
+  min-height: 460px;
+}
+.app.mobile { padding: 18px 18px 26px; min-height: 520px; }
+
+.app.light {
+  --base: var(--l-base); --raised: var(--l-raised); --ink: var(--l-ink);
+  --ink2: var(--l-ink-2); --ink-muted: var(--l-ink-muted); --accent: var(--l-accent);
+  --accent-soft: var(--l-accent-soft); --border: var(--l-border);
+  --row-shadow: 0 2px 6px -3px rgba(90,60,35,0.22);
+  --toast-shadow: 0 14px 30px -10px rgba(70,45,25,0.4);
+}
+.app.dark {
+  --base: var(--d-base); --raised: var(--d-raised); --ink: var(--d-ink);
+  --ink2: var(--d-ink-2); --ink-muted: var(--d-ink-muted); --accent: var(--d-accent);
+  --accent-soft: var(--d-accent-soft); --border: var(--d-border);
+  --row-shadow: 0 2px 8px -4px rgba(0,0,0,0.55);
+  --toast-shadow: 0 16px 34px -10px rgba(0,0,0,0.65);
+}
+
+/* content column */
+.col {
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 2px 18px;
+}
+.app.mobile .header { padding-bottom: 14px; }
+.wordmark {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.app.mobile .wordmark { font-size: 23px; }
+.wordmark .tld { color: var(--accent); }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
+
+/* theme toggle — ghost rounded icon button */
+.theme-toggle {
+  width: 36px; height: 36px;
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  color: var(--ink2);
+}
+.theme-toggle:hover { background: var(--accent-soft); color: var(--accent); }
+.app.dark .theme-toggle:hover { color: var(--ink); }
+.theme-toggle svg { width: 19px; height: 19px; display: block; }
+
+/* avatar placeholder — quiet soft circle */
+.avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app.dark .avatar { color: var(--ink); }
+.avatar svg { width: 17px; height: 17px; display: block; }
+
+/* add input (pinned top, focused) */
+.add {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--raised);
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  padding: 13px 15px;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  margin-bottom: 8px;
+}
+.add .ph { color: var(--ink2); font-size: 16px; flex: 1; }
+.add .typed { color: var(--ink); font-size: 16px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add .caret {
+  width: 1.5px; height: 20px; background: var(--accent);
+  display: inline-block; margin-left: 1px; vertical-align: middle;
+}
+.add .add-btn {
+  font-size: 14px; font-weight: 700; color: var(--accent);
+  padding: 4px 12px; border-radius: 8px; background: var(--accent-soft);
+  margin-left: 10px; white-space: nowrap;
+}
+.app.dark .add .add-btn { color: var(--ink); }
+
+/* char counter (only near limit) */
+.counter {
+  text-align: right;
+  font-size: 12px;
+  color: var(--ink2);
+  padding: 0 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.counter .near { color: var(--accent); font-weight: 700; }
+
+.list { display: flex; flex-direction: column; gap: 9px; margin-top: 6px; }
+
+/* task row */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 15px 15px;
+  box-shadow: var(--row-shadow);
+}
+/* single-line rows stay vertically centered & tidy */
+.row.single { align-items: center; }
+
+/* checkbox — empty */
+.check {
+  width: 22px; height: 22px; flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--ink-muted);
+  background: transparent;
+}
+/* checkbox — done, confident filled terracotta circle w/ bold check */
+.check.done {
+  border-color: var(--accent);
+  background: var(--accent);
+  position: relative;
+}
+.check.done::after {
+  content: "";
+  position: absolute;
+  left: 6px; top: 3px;
+  width: 6px; height: 11px;
+  border: solid #fff;
+  border-width: 0 2.6px 2.6px 0;
+  border-radius: 1px;
+  transform: rotate(43deg);
+}
+
+.row .body { flex: 1; min-width: 0; }
+.row .txt {
+  font-size: 16px; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row .desc {
+  font-size: 13.5px;
+  color: var(--ink2);
+  margin-top: 3px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row .meta { font-size: 12.5px; color: var(--ink2); margin-top: 4px; }
+
+/* larger, readable type on the big desktop panels (true 1:1, no zoom) */
+.app:not(.mobile) .txt  { font-size: 17.5px; }
+.app:not(.mobile) .desc { font-size: 14px; }
+.app:not(.mobile) .meta { font-size: 13px; }
+
+/* long description clamped to ~2 lines with soft fade + "more" affordance */
+.desc-wrap { position: relative; margin-top: 3px; }
+.desc-wrap .desc {
+  margin-top: 0;
+  max-height: 2.9em;      /* ~2 lines at line-height 1.45 */
+  overflow: hidden;
+}
+.desc-wrap::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1.35em;
+  background: linear-gradient(to bottom, rgba(255,252,247,0), var(--raised));
+  pointer-events: none;
+}
+.desc-wrap .more {
+  position: absolute; right: 0; bottom: 0;
+  font-size: 13px; font-weight: 800; color: var(--accent);
+  background: var(--raised);
+  padding: 0 2px 0 10px;
+}
+.app.dark .desc-wrap::after {
+  background: linear-gradient(to bottom, rgba(44,39,34,0), var(--raised));
+}
+.app.dark .desc-wrap .more { color: var(--ink); }
+
+/* completed row — settled/recessed */
+.row.done {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.85;
+}
+.row.done .txt {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-muted);
+  color: var(--ink-muted);
+}
+.row.done .meta { color: var(--ink-muted); }
+
+/* delete affordance (hovered state shown) */
+.del {
+  flex: none;
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink2);
+  font-size: 15px;
+}
+.del.hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app.dark .del.hover { color: var(--ink); }
+
+/* edit-in-place row */
+.row.editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--row-shadow);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.edit-field {
+  display: flex; align-items: center;
+}
+.edit-field .sel {
+  font-size: 16px; color: var(--ink);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+.app.dark .edit-field .sel { color: var(--ink); }
+.edit-field .caret {
+  width: 1.5px; height: 20px; background: var(--accent);
+  display: inline-block; margin-left: 1px;
+}
+/* second (optional description) field in the inline editor */
+.edit-desc {
+  font-size: 13.5px;
+  color: var(--ink2);
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.edit-hint {
+  font-size: 12px; color: var(--ink2);
+}
+.edit-hint kbd {
+  font-family: var(--font);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* undo toast */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 11px 12px 11px 20px;
+  box-shadow: var(--toast-shadow);
+  white-space: nowrap;
+}
+.toast .t-txt { font-size: 14.5px; color: var(--ink); font-weight: 500; }
+.toast .undo {
+  font-size: 14px; font-weight: 800; color: var(--accent);
+  background: var(--accent-soft);
+  padding: 6px 15px; border-radius: 999px;
+}
+.app.dark .toast .undo { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div class="page-title">todo — key screen</div>
+<div class="page-sub">Cream &amp; Terracotta · light + warm-dark · 1:1 fidelity mock</div>
+
+<div class="stack">
+
+  <!-- 1. DESKTOP LIGHT (large, 1:1) -->
+  <div class="panel-wrap desktop-panel">
+    <div class="panel-label">Desktop · Light</div>
+    <div class="browser">
+      <div class="browser-bar">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="omnibox">todo.app</span>
+      </div>
+      <div class="app light">
+        <div class="col">
+          <div class="header">
+            <div class="wordmark">todo</div>
+            <div class="header-actions">
+              <span class="theme-toggle" title="Switch to dark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"></circle><line x1="12" y1="2.5" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="21.5"></line><line x1="4.2" y1="4.2" x2="6" y2="6"></line><line x1="18" y1="18" x2="19.8" y2="19.8"></line><line x1="2.5" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="21.5" y2="12"></line><line x1="4.2" y1="19.8" x2="6" y2="18"></line><line x1="18" y1="6" x2="19.8" y2="4.2"></line></svg>
+              </span>
+              <span class="avatar" title="You">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="3.6"></circle><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6z"></path></svg>
+              </span>
+            </div>
+          </div>
+
+          <!-- add input, focused, with a long title nearing its 200-char cap -->
+          <div class="add">
+            <span class="typed">Draft the year-end summary email to the distributed team covering roadmap shifts</span><span class="caret"></span>
+            <span class="add-btn">Add</span>
+          </div>
+          <div class="counter"><span class="near">184</span> / 200</div>
+
+          <div class="list">
+            <!-- active + hovered delete, long description clamped to 2 lines -->
+            <div class="row">
+              <span class="check"></span>
+              <div class="body">
+                <div class="txt">Email Sam the Q4 numbers</div>
+                <div class="desc-wrap">
+                  <div class="desc">Include the revised forecast tab, flag the shipping delay on the west-coast SKUs, and note that finance wants the comparison against last year's Q4 before the board call on Friday.</div>
+                  <span class="more">more</span>
+                </div>
+                <div class="meta">just now</div>
+              </div>
+              <span class="del hover">✕</span>
+            </div>
+
+            <div class="row single">
+              <span class="check"></span>
+              <div class="body">
+                <div class="txt">Book dentist</div>
+                <div class="meta">2 hours ago</div>
+              </div>
+            </div>
+
+            <!-- edit in place: title field (focused) + optional description field -->
+            <div class="row editing">
+              <div class="edit-field">
+                <span class="sel">Review the design mock</span><span class="caret"></span>
+              </div>
+              <div class="edit-desc">Add a description (optional)</div>
+              <div class="edit-hint"><kbd>Enter</kbd> to save · <kbd>Esc</kbd> to cancel</div>
+            </div>
+
+            <!-- completed -->
+            <div class="row done single">
+              <span class="check done"></span>
+              <div class="body">
+                <div class="txt">Pick up dry cleaning</div>
+                <div class="meta">yesterday</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toast">
+          <span class="t-txt">Task deleted</span>
+          <span class="undo">Undo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. DESKTOP DARK (large, 1:1) -->
+  <div class="panel-wrap desktop-panel">
+    <div class="panel-label">Desktop · Warm-Dark</div>
+    <div class="browser">
+      <div class="browser-bar" style="background:#20211f">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="omnibox" style="background:#2c2c29;color:#8f877a">todo.app</span>
+      </div>
+      <div class="app dark">
+        <div class="col">
+          <div class="header">
+            <div class="wordmark">todo</div>
+            <div class="header-actions">
+              <span class="theme-toggle" title="Switch to light">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.8A8.2 8.2 0 1 1 9.2 3.5a6.5 6.5 0 0 0 11.3 11.3z"></path></svg>
+              </span>
+              <span class="avatar" title="You">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="3.6"></circle><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6z"></path></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="add">
+            <span class="ph">Add a task…</span><span class="caret"></span>
+            <span class="add-btn">Add</span>
+          </div>
+
+          <div class="list">
+            <div class="row">
+              <span class="check"></span>
+              <div class="body">
+                <div class="txt">Email Sam the Q4 numbers</div>
+                <div class="desc-wrap">
+                  <div class="desc">Include the revised forecast tab, flag the shipping delay on the west-coast SKUs, and note that finance wants the comparison against last year's Q4 before the board call on Friday.</div>
+                  <span class="more">more</span>
+                </div>
+                <div class="meta">just now</div>
+              </div>
+              <span class="del hover">✕</span>
+            </div>
+
+            <div class="row single">
+              <span class="check"></span>
+              <div class="body">
+                <div class="txt">Book dentist</div>
+                <div class="meta">2 hours ago</div>
+              </div>
+            </div>
+
+            <div class="row editing">
+              <div class="edit-field">
+                <span class="sel">Review the design mock</span><span class="caret"></span>
+              </div>
+              <div class="edit-desc">Add a description (optional)</div>
+              <div class="edit-hint"><kbd>Enter</kbd> to save · <kbd>Esc</kbd> to cancel</div>
+            </div>
+
+            <div class="row done single">
+              <span class="check done"></span>
+              <div class="body">
+                <div class="txt">Pick up dry cleaning</div>
+                <div class="meta">yesterday</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. MOBILE ROW: light + dark, true ~375px each -->
+  <div class="mobile-row">
+
+    <div class="panel-wrap mobile-panel">
+      <div class="panel-label">Mobile · Light</div>
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="app light mobile">
+            <div class="notch"></div>
+            <div class="col">
+              <div class="header">
+                <div class="wordmark">todo</div>
+                <div class="header-actions">
+                  <span class="theme-toggle" title="Switch to dark">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"></circle><line x1="12" y1="2.5" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="21.5"></line><line x1="4.2" y1="4.2" x2="6" y2="6"></line><line x1="18" y1="18" x2="19.8" y2="19.8"></line><line x1="2.5" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="21.5" y2="12"></line><line x1="4.2" y1="19.8" x2="6" y2="18"></line><line x1="18" y1="6" x2="19.8" y2="4.2"></line></svg>
+                  </span>
+                  <span class="avatar" title="You">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="3.6"></circle><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6z"></path></svg>
+                  </span>
+                </div>
+              </div>
+
+              <div class="add">
+                <span class="ph">Add a task…</span><span class="caret"></span>
+                <span class="add-btn">Add</span>
+              </div>
+
+              <div class="list">
+                <div class="row">
+                  <span class="check"></span>
+                  <div class="body">
+                    <div class="txt">Email Sam the Q4 numbers</div>
+                    <div class="desc-wrap">
+                      <div class="desc">Include the revised forecast tab, flag the shipping delay on the west-coast SKUs, and note that finance wants the comparison against last year's Q4 before the board call on Friday.</div>
+                      <span class="more">more</span>
+                    </div>
+                    <div class="meta">just now</div>
+                  </div>
+                  <span class="del">✕</span>
+                </div>
+
+                <div class="row single">
+                  <span class="check"></span>
+                  <div class="body">
+                    <div class="txt">Book dentist</div>
+                    <div class="meta">2 hours ago</div>
+                  </div>
+                </div>
+
+                <div class="row editing">
+                  <div class="edit-field">
+                    <span class="sel">Review the design mock</span><span class="caret"></span>
+                  </div>
+                  <div class="edit-desc">Add a description (optional)</div>
+                  <div class="edit-hint"><kbd>Enter</kbd> save · <kbd>Esc</kbd> cancel</div>
+                </div>
+
+                <div class="row done single">
+                  <span class="check done"></span>
+                  <div class="body">
+                    <div class="txt">Pick up dry cleaning</div>
+                    <div class="meta">yesterday</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-wrap mobile-panel">
+      <div class="panel-label">Mobile · Warm-Dark</div>
+      <div class="phone dark">
+        <div class="phone-screen">
+          <div class="app dark mobile">
+            <div class="notch"></div>
+            <div class="col">
+              <div class="header">
+                <div class="wordmark">todo</div>
+                <div class="header-actions">
+                  <span class="theme-toggle" title="Switch to light">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.8A8.2 8.2 0 1 1 9.2 3.5a6.5 6.5 0 0 0 11.3 11.3z"></path></svg>
+                  </span>
+                  <span class="avatar" title="You">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.5" r="3.6"></circle><path d="M4.8 20c0-3.6 3.2-6 7.2-6s7.2 2.4 7.2 6z"></path></svg>
+                  </span>
+                </div>
+              </div>
+
+              <div class="add">
+                <span class="ph">Add a task…</span><span class="caret"></span>
+                <span class="add-btn">Add</span>
+              </div>
+
+              <div class="list">
+                <div class="row">
+                  <span class="check"></span>
+                  <div class="body">
+                    <div class="txt">Email Sam the Q4 numbers</div>
+                    <div class="desc-wrap">
+                      <div class="desc">Include the revised forecast tab, flag the shipping delay on the west-coast SKUs, and note that finance wants the comparison against last year's Q4 before the board call on Friday.</div>
+                      <span class="more">more</span>
+                    </div>
+                    <div class="meta">just now</div>
+                  </div>
+                  <span class="del">✕</span>
+                </div>
+
+                <div class="row single">
+                  <span class="check"></span>
+                  <div class="body">
+                    <div class="txt">Book dentist</div>
+                    <div class="meta">2 hours ago</div>
+                  </div>
+                </div>
+
+                <div class="row editing">
+                  <div class="edit-field">
+                    <span class="sel">Review the design mock</span><span class="caret"></span>
+                  </div>
+                  <div class="edit-desc">Add a description (optional)</div>
+                  <div class="edit-hint"><kbd>Enter</kbd> save · <kbd>Esc</kbd> cancel</div>
+                </div>
+
+                <div class="row done single">
+                  <span class="check done"></span>
+                  <div class="body">
+                    <div class="txt">Pick up dry cleaning</div>
+                    <div class="meta">yesterday</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="toast">
+              <span class="t-txt">Task deleted</span>
+              <span class="undo">Undo</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,439 @@
+<meta charset="utf-8">
+<title>Key States — todo</title>
+<style>
+/*
+  KEY STATES MOCK — illustrates EXPERIENCE.md contract, NOT the source of truth.
+  Spine sections illustrated:
+    - State Patterns: empty, loading (skeleton, no intervening blank screen), error + retry
+    - Voice and Tone: warm, restrained microcopy (no alarm, no marketing fluff)
+  The spine is the contract; this file is a mock that illustrates it at 1:1 fidelity.
+
+  Palette — Cream & Terracotta (warm), light:
+    surface-base #F5EFE6 · surface-raised #FFFCF7 · ink-primary #2E2A24
+    ink-secondary #8A8072 · ink-muted #B8AE9E · accent #c15a34 · accent-soft #E9C9B8
+    border-hairline #E5DBCC
+  Warm dark (bonus empty panel):
+    surface-base #221E1A · surface-raised #2C2722 · ink-primary #F0E9DE
+    ink-secondary #A69C8C · accent #D97B54 · border #3A332C
+*/
+
+:root {
+  --surface-base: #F5EFE6;
+  --surface-raised: #FFFCF7;
+  --ink-primary: #2E2A24;
+  --ink-secondary: #8A8072;
+  --ink-muted: #B8AE9E;
+  --accent: #c15a34;
+  --accent-soft: #E9C9B8;
+  --border: #E5DBCC;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: ui-rounded, 'SF Pro Rounded', 'Nunito', 'Quicksand', system-ui, sans-serif;
+  background: #EFE7DB;
+  color: var(--ink-primary);
+  padding: 48px 32px 72px;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+.page-title {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  margin-bottom: 6px;
+}
+.page-sub {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-bottom: 40px;
+}
+
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  justify-content: center;
+  align-items: flex-start;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+/* ---- Framed browser panel ---- */
+.frame {
+  width: 380px;
+  border-radius: 20px;
+  background: var(--surface-raised);
+  box-shadow: 0 18px 44px -20px rgba(46,42,36,0.35), 0 2px 6px rgba(46,42,36,0.06);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.frame-caption {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  margin-top: 16px;
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px;
+  background: var(--surface-base);
+  border-bottom: 1px solid var(--border);
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot.r { background: #E0B4A2; }
+.dot.y { background: #E9D2A6; }
+.dot.g { background: #C7D2B0; }
+.chrome-url {
+  margin-left: 10px;
+  flex: 1;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  padding: 4px 10px;
+  text-align: center;
+}
+
+.viewport {
+  background: var(--surface-base);
+  padding: 26px 24px 40px;
+  min-height: 520px;
+}
+
+/* ---- App shell ---- */
+.app { max-width: 560px; margin: 0 auto; }
+
+.wordmark {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink-primary);
+  margin-bottom: 20px;
+  padding-left: 2px;
+}
+.wordmark .tick { color: var(--accent); }
+
+/* ---- Add input ---- */
+.add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-raised);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  transition: none;
+}
+.add.focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(193,90,52,0.12);
+}
+.add .plus {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  flex-shrink: 0;
+}
+.add .placeholder {
+  color: var(--ink-muted);
+  font-size: 15px;
+  flex: 1;
+}
+.add .caret {
+  width: 1.5px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 1px;
+  margin-left: -4px;
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---- Empty state ---- */
+.empty {
+  text-align: center;
+  padding: 64px 20px 24px;
+}
+.glyph {
+  width: 84px; height: 84px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+}
+.glyph svg { width: 40px; height: 40px; }
+.empty h2 {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 8px;
+}
+.empty p {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  max-width: 260px;
+  margin: 0 auto;
+}
+
+/* ---- Loading / skeleton ---- */
+.sklist { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+.skrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 16px;
+}
+.skcheck {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.skline { height: 11px; border-radius: 6px; }
+.shimmer {
+  background: linear-gradient(100deg, var(--accent-soft) 20%, #F3E4DA 40%, var(--accent-soft) 60%);
+  background-size: 220% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+.shimmer.soft {
+  background: linear-gradient(100deg, var(--border) 20%, #F1EADD 40%, var(--border) 60%);
+  background-size: 220% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 130% 0; }
+  100% { background-position: -30% 0; }
+}
+.loadnote {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  margin-top: 26px;
+  letter-spacing: 0.01em;
+}
+
+/* ---- Error state ---- */
+.error {
+  text-align: center;
+  padding: 56px 20px 24px;
+}
+.err-glyph {
+  width: 84px; height: 84px;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  background: #EFE1D3;
+  display: flex; align-items: center; justify-content: center;
+}
+.err-glyph svg { width: 38px; height: 38px; }
+.error h2 {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 8px;
+}
+.error p {
+  font-size: 14px;
+  color: var(--ink-secondary);
+  max-width: 270px;
+  margin: 0 auto 24px;
+}
+.btn-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #FFF9F4;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 22px;
+  cursor: pointer;
+  box-shadow: 0 6px 16px -6px rgba(193,90,52,0.55);
+}
+.btn-retry svg { width: 16px; height: 16px; }
+
+/* ---- Dark bonus overrides ---- */
+.frame.dark {
+  --surface-base: #221E1A;
+  --surface-raised: #2C2722;
+  --ink-primary: #F0E9DE;
+  --ink-secondary: #A69C8C;
+  --ink-muted: #78705F;
+  --accent: #D97B54;
+  --accent-soft: #4A3A2F;
+  --border: #3A332C;
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+.frame.dark .chrome-url,
+.frame.dark .add { color: var(--ink-muted); }
+.frame.dark .dot.r { background: #7a4a3a; }
+.frame.dark .dot.y { background: #7a6a45; }
+.frame.dark .dot.g { background: #556047; }
+</style>
+
+<div class="page-title">todo — key states</div>
+<div class="page-sub">Empty · Loading · Error &amp; retry — Cream &amp; Terracotta, 1:1</div>
+
+<div class="gallery">
+
+  <!-- 1. EMPTY (light) -->
+  <div>
+    <div class="frame">
+      <div class="chrome">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="chrome-url">todo.app</span>
+      </div>
+      <div class="viewport">
+        <div class="app">
+          <div class="wordmark">todo<span class="tick">.</span></div>
+          <div class="add focused">
+            <span class="plus">+</span>
+            <span class="placeholder">Add a task…</span>
+            <span class="caret"></span>
+          </div>
+          <div class="empty">
+            <div class="glyph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#c15a34" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" stroke="#c15a34" stroke-width="1.6" opacity="0.5"/>
+                <path d="M8 12.5l2.5 2.5L16 9"/>
+              </svg>
+            </div>
+            <h2>Nothing here yet</h2>
+            <p>Add your first task above — it'll show up right here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption">Empty — light</div>
+  </div>
+
+  <!-- 2. LOADING (light) -->
+  <div>
+    <div class="frame">
+      <div class="chrome">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="chrome-url">todo.app</span>
+      </div>
+      <div class="viewport">
+        <div class="app">
+          <div class="wordmark">todo<span class="tick">.</span></div>
+          <div class="add">
+            <span class="plus">+</span>
+            <span class="placeholder">Add a task…</span>
+          </div>
+          <div class="sklist">
+            <div class="skrow">
+              <div class="skcheck shimmer"></div>
+              <div class="skline shimmer" style="width:72%"></div>
+            </div>
+            <div class="skrow">
+              <div class="skcheck shimmer"></div>
+              <div class="skline shimmer" style="width:54%"></div>
+            </div>
+            <div class="skrow">
+              <div class="skcheck shimmer"></div>
+              <div class="skline shimmer" style="width:63%"></div>
+            </div>
+            <div class="skrow">
+              <div class="skcheck shimmer"></div>
+              <div class="skline shimmer" style="width:44%"></div>
+            </div>
+          </div>
+          <div class="loadnote">Getting your tasks…</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption">Loading — light</div>
+  </div>
+
+  <!-- 3. ERROR (light) -->
+  <div>
+    <div class="frame">
+      <div class="chrome">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="chrome-url">todo.app</span>
+      </div>
+      <div class="viewport">
+        <div class="app">
+          <div class="wordmark">todo<span class="tick">.</span></div>
+          <div class="add">
+            <span class="plus">+</span>
+            <span class="placeholder">Add a task…</span>
+          </div>
+          <div class="error">
+            <div class="err-glyph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#8A8072" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-3.5-7.1"/>
+                <path d="M21 4v4.5h-4.5"/>
+              </svg>
+            </div>
+            <h2>Couldn't load your tasks</h2>
+            <p>Something got in the way. Your tasks are safe — let's try that again.</p>
+            <button class="btn-retry">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#FFF9F4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12a9 9 0 1 1-3.5-7.1"/>
+                <path d="M21 4v4.5h-4.5"/>
+              </svg>
+              Try again
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption">Error &amp; retry — light</div>
+  </div>
+
+  <!-- 4. BONUS: EMPTY (warm dark) -->
+  <div>
+    <div class="frame dark">
+      <div class="chrome">
+        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="chrome-url">todo.app</span>
+      </div>
+      <div class="viewport">
+        <div class="app">
+          <div class="wordmark">todo<span class="tick">.</span></div>
+          <div class="add focused">
+            <span class="plus">+</span>
+            <span class="placeholder">Add a task…</span>
+            <span class="caret"></span>
+          </div>
+          <div class="empty">
+            <div class="glyph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#D97B54" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" stroke="#D97B54" stroke-width="1.6" opacity="0.55"/>
+                <path d="M8 12.5l2.5 2.5L16 9"/>
+              </svg>
+            </div>
+            <h2>Nothing here yet</h2>
+            <p>Add your first task above — it'll show up right here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption">Bonus — Empty, warm dark</div>
+  </div>
+
+</div>
