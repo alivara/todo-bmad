@@ -3,24 +3,20 @@
 // nothing internal, preserving the one-way dependency spine (AD-1).
 package model
 
-// Todo mirrors the single source-of-truth wire contract in shared/todo.ts (AD-6).
-// The json tags map Go's exported PascalCase to the camelCase wire shape; timestamps
-// are NESTED under metadata; description is "" (never null). Any change here must be
-// made in shared/todo.ts first and kept in lockstep (a contract test enforces this
-// from Story 1.2).
-type Todo struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Status      string   `json:"status"`
-	Metadata    Metadata `json:"metadata"`
-}
+import "time"
 
-// Metadata carries the server-authoritative timestamps (AD-7): RFC3339 UTC with a
-// trailing Z, second precision.
-type Metadata struct {
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+// Todo is the domain representation of a todo. It is intentionally FLAT and free of
+// wire concerns: timestamps are native time.Time, not pre-formatted strings, and there
+// is no `metadata` nesting or json tags here. The AD-6 wire shape (camelCase, metadata
+// nesting, RFC3339-Z formatting) is produced by the serializer at the HTTP boundary
+// (see backend/handler/wire.go), keeping the domain model decoupled from the wire.
+type Todo struct {
+	ID          string
+	Title       string
+	Description string
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Allowed todo statuses (AD-8). Kept in sync with the DB CHECK constraint and, from

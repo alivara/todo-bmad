@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -58,14 +59,17 @@ func TestListTodos_NilSliceStillBrackets(t *testing.T) {
 	}
 }
 
-// A populated list carries the AD-6 wire shape: camelCase, metadata nesting.
+// A populated list carries the AD-6 wire shape: camelCase, metadata nesting, and the
+// serializer's RFC3339-Z formatting of the domain's native time.Time.
 func TestListTodos_WireShape(t *testing.T) {
+	ts := time.Date(2026, 7, 17, 14, 3, 11, 0, time.UTC)
 	svc := stubService{todos: []model.Todo{{
 		ID:          "11111111-1111-4111-8111-111111111111",
 		Title:       "buy milk",
 		Description: "",
 		Status:      model.StatusActive,
-		Metadata:    model.Metadata{CreatedAt: "2026-07-17T14:03:11Z", UpdatedAt: "2026-07-17T14:03:11Z"},
+		CreatedAt:   ts,
+		UpdatedAt:   ts,
 	}}}
 
 	rec := doGET(t, svc, "/todos")
@@ -82,8 +86,8 @@ func TestListTodos_WireShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("metadata not nested object, got %T", row["metadata"])
 	}
-	if _, ok := meta["createdAt"]; !ok {
-		t.Fatalf("metadata.createdAt missing (camelCase + nesting expected)")
+	if meta["createdAt"] != "2026-07-17T14:03:11Z" {
+		t.Fatalf("metadata.createdAt = %v, want RFC3339-Z serialized timestamp", meta["createdAt"])
 	}
 	if row["description"] != "" {
 		t.Fatalf("description = %v, want empty string (never null)", row["description"])

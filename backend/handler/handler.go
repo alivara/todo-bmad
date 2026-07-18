@@ -59,9 +59,8 @@ func listTodos(svc TodoService) gin.HandlerFunc {
 				model.NewAPIError(model.CodeInternalError, "failed to list todos"))
 			return
 		}
-		if todos == nil {
-			todos = []model.Todo{}
-		}
-		c.JSON(http.StatusOK, todos)
+		// The serializer maps the domain slice to the AD-6 wire shape and always
+		// returns a non-nil slice, so an empty list is [] and never null.
+		c.JSON(http.StatusOK, toTodoResponses(todos))
 	}
 }

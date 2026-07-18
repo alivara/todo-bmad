@@ -8,7 +8,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -34,13 +33,9 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 	return &Postgres{pool: pool}
 }
 
-// timeFormat is RFC3339 UTC second precision (AD-7), e.g. "2026-07-17T14:03:11Z".
-func formatTS(t time.Time) string {
-	return t.UTC().Format(time.RFC3339)
-}
-
-// ListTodos implements Repository. The slice is initialized non-nil so an empty
-// table serializes as [] (AD-6), never null.
+// ListTodos implements Repository. Timestamps are scanned as native time.Time into the
+// flat domain model; RFC3339 formatting + metadata nesting are the serializer's job. The
+// slice is initialized non-nil so an empty table serializes as [] (AD-6), never null.
 func (p *Postgres) ListTodos(ctx context.Context) ([]model.Todo, error) {
 	const q = `
 		SELECT id, title, description, status, created_at, updated_at
@@ -55,14 +50,10 @@ func (p *Postgres) ListTodos(ctx context.Context) ([]model.Todo, error) {
 
 	todos := make([]model.Todo, 0)
 	for rows.Next() {
-		var (
-			t                    model.Todo
-			createdAt, updatedAt time.Time
-		)
-		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status, &createdAt, &updatedAt); err != nil {
+		var t model.Todo
+		if err := rows.Scan(&t.ID, &t.Title, &t.Description, &t.Status, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan todo: %w", err)
 		}
-		t.Metadata = model.Metadata{CreatedAt: formatTS(createdAt), UpdatedAt: formatTS(updatedAt)}
 		todos = append(todos, t)
 	}
 	if err := rows.Err(); err != nil {

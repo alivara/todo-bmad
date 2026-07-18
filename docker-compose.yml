@@ -2,11 +2,11 @@
 #
 #   docker compose up
 #
-# Topology: three services on one internal network. ONLY `web` publishes a host port
-# (the sole entry point); `api` and `db` are internal-only. Startup is healthcheck-
-# gated: db healthy -> api (migrate, then serve; ready at GET /health) -> web.
-# Config is 12-factor env with working defaults baked in here, so a bare clone runs
-# with no .env file. See .env.example to override.
+# Topology: three services on one internal network. ONLY `frontend` publishes a host
+# port (the sole entry point); `backend` and `db` are internal-only. Startup is
+# healthcheck-gated: db healthy -> backend (migrate, then serve; ready at GET /health)
+# -> frontend. Config is 12-factor env with working defaults baked in here, so a bare
+# clone runs with no .env file. See .env.example to override.
 
 services:
   db:
@@ -23,7 +23,7 @@ services:
       - todo_db_data:/var/lib/postgresql
     healthcheck:
       # -h 127.0.0.1 probes the TCP listener (not just the local socket), so the
-      # container is only "healthy" once api can actually connect over the network.
+      # container is only "healthy" once backend can actually connect over the network.
       test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-todo} -d ${POSTGRES_DB:-todo}']
       interval: 5s
       timeout: 5s
@@ -31,9 +31,9 @@ services:
       start_period: 10s
     # No `ports:` — db is internal-only.
 
-  api:
+  backend:
     build:
-      context: ./api
+      context: ./backend
     # A transient boot error (e.g. a brief DB blip after the healthcheck passes) exits
     # the process; restart lets compose bring it back instead of wedging the stack.
     restart: unless-stopped
@@ -51,21 +51,21 @@ services:
       retries: 10
       # Grace window for migrate-then-serve so early probes don't burn the retry budget.
       start_period: 30s
-    # No `ports:` — api is internal-only; the browser reaches it only via the web proxy.
+    # No `ports:` — backend is internal-only; the browser reaches it only via the frontend proxy.
 
-  web:
+  frontend:
     build:
       # Build context is the repo root so the Dockerfile can COPY shared/ (the single
-      # source-of-truth wire contract) alongside web/.
+      # source-of-truth wire contract) alongside frontend/.
       context: .
-      dockerfile: web/Dockerfile
+      dockerfile: frontend/Dockerfile
     restart: unless-stopped
     environment:
       # Same-origin browser calls to /api/* are proxied to this internal address (AD-3).
-      API_INTERNAL_URL: http://api:8080
+      API_INTERNAL_URL: http://backend:8080
       PORT: '3000'
     depends_on:
-      api:
+      backend:
         condition: service_healthy
     ports:
       # The ONLY host-exposed port — the sole entry point.

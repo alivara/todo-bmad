@@ -136,6 +136,21 @@ _Code review 2026-07-18 (adversarial: Blind Hunter + Edge Case Hunter + Acceptan
 
 **Dismissed (not written as work):** missing `package-lock.json` / `go.sum` (both exist on disk; excluded from the review diff) · `page.tsx` `data.length` "type error" (false — `next build` passes; TanStack v5 narrows the destructured discriminated union) · `sslmode=disable`+default password (by-design for local v1, documented in `.env.example`).
 
+### Review Findings — Re-review (2026-07-18, reopened at user request)
+
+_Focused re-review of the delta since the last pass (the `web→frontend`/`api→backend` rename in commit `1105e82`) plus two user-raised findings. Go/TS logic was byte-identical to the twice-reviewed code, so the adversarial fan-out was not re-run on unchanged logic._
+
+**Decisions (resolved by user):**
+
+- [x] [Review][Decision] **RESOLVED → "Complete the rename".** The blind `web→frontend`/`api→backend` rename had broken the build (`docker-compose.yml` `context: ./api`; `frontend/Dockerfile` `COPY web/…`). Fixed: compose now builds `./backend` + `frontend/Dockerfile`, services renamed to `frontend`/`backend` (`API_INTERNAL_URL: http://backend:8080`), and the `frontend`/`backend` dir/service references updated in README/.env.example/deferred-work. The HTTP contract path stays `/api/*`. Go module path left as `github.com/todo-app/api` (path need not match dir; renaming = pure churn). **Flagged:** ARCHITECTURE-SPINE still names units `web`/`api` — the spine should be updated to match on its next revision.
+- [x] [Review][Decision] **RESOLVED → "Keep pgx + golang-migrate"** (user point 1). GORM **dismissed** — it conflicts with AD-2 (clean repository interface) and AD-11 (no ORM AutoMigrate). No code change.
+
+**Patch (FIXED 2026-07-18):**
+
+- [x] [Review][Patch] **Timestamps moved to the serializer** (user point 2). `backend/model/todo.go` `Todo` now carries flat `CreatedAt`/`UpdatedAt time.Time` (no `metadata` nesting, no json tags in the domain); the AD-6 wire envelope + RFC3339-`Z` formatting live in a new `backend/handler/wire.go` serializer; `repository.go` scans native `time.Time`. Wire output unchanged — verified live (`metadata.createdAt/updatedAt` correct). [backend/model/todo.go, backend/handler/wire.go, backend/handler/handler.go, backend/repository/repository.go, backend/handler/handler_test.go]
+
+_Re-verified after both patches: `go vet`/`go test`/`gofmt`/`golangci-lint` (0 issues) all clean; `docker compose up` healthy in order (db→backend→frontend), only `frontend` host-exposed, `GET /api/todos`→`200 []`, `/api/health`→`200`, and a seeded row returns the correct AD-6 wire shape._
+
 ## Dev Notes
 
 ### Scope discipline (what this story is and is NOT)
@@ -312,3 +327,4 @@ Story 1.1 implemented and verified end-to-end. All 9 ACs satisfied.
 | --- | --- |
 | 2026-07-17 | Story 1.1 implemented: greenfield monorepo scaffold (`web`/`api`/`shared`), one-command `docker compose up`, migrations-on-boot + `todos` table, `GET /todos` (`[]`) + `GET /health`, dumb proxy, TanStack Query empty state, Cream & Terracotta CSS-variable tokens, test-only seed/reset seam. All 9 ACs verified end-to-end (compose up, browser, durability). Status → review. |
 | 2026-07-18 | Code review (3 adversarial layers). 4 patches applied (proxy hardening, compose startup resilience, golangci-lint gate added, `/health` AD-9 envelope), 4 low-severity items deferred, 4 dismissed as false-positive/by-design. Re-verified: web+go gates + golangci-lint clean, stack healthy end-to-end. Status → done. |
+| 2026-07-18 | Re-review (reopened). Completed the `web→frontend`/`api→backend` rename that had broken the build — fixed `docker-compose.yml` (build `./backend`, services `frontend`/`backend`, `API_INTERNAL_URL: http://backend:8080`), `frontend/Dockerfile`, README, `.env.example`. Refactored timestamps to a serializer (`backend/handler/wire.go`; domain `Todo` now flat `time.Time`). GORM dismissed (keep pgx per AD-2/AD-11). Re-verified end-to-end. Status → done. |
