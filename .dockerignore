@@ -1,0 +1,17 @@
+# Keep Docker build contexts small and free of tooling/artifacts.
+.git
+.gitignore
+.claude
+_bmad
+_bmad-output
+.bmad-loop
+design-artifacts
+docs
+**/node_modules
+frontend/.next
+frontend/out
+frontend/coverage
+backend/bin
+backend/tmp
+**/*.test
+.DS_Store

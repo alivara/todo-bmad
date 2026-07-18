@@ -1,0 +1,75 @@
+# todo-app — full stack in one command (AD-12).
+#
+#   docker compose up
+#
+# Topology: three services on one internal network. ONLY `web` publishes a host port
+# (the sole entry point); `api` and `db` are internal-only. Startup is healthcheck-
+# gated: db healthy -> api (migrate, then serve; ready at GET /health) -> web.
+# Config is 12-factor env with working defaults baked in here, so a bare clone runs
+# with no .env file. See .env.example to override.
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-todo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-todo}
+      POSTGRES_DB: ${POSTGRES_DB:-todo}
+    # Named volume so todo data survives `docker compose down` + `up` (AD-12 / R6).
+    # Postgres 18+ images store data in a major-version subdirectory, so the mount
+    # point is /var/lib/postgresql (NOT /var/lib/postgresql/data as in <=17).
+    volumes:
+      - todo_db_data:/var/lib/postgresql
+    healthcheck:
+      # -h 127.0.0.1 probes the TCP listener (not just the local socket), so the
+      # container is only "healthy" once api can actually connect over the network.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-todo} -d ${POSTGRES_DB:-todo}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # No `ports:` — db is internal-only.
+
+  api:
+    build:
+      context: ./api
+    # A transient boot error (e.g. a brief DB blip after the healthcheck passes) exits
+    # the process; restart lets compose bring it back instead of wedging the stack.
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-todo}:${POSTGRES_PASSWORD:-todo}@db:5432/${POSTGRES_DB:-todo}?sslmode=disable
+      PORT: '8080'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # busybox wget ships in the alpine runtime image.
+      test: ['CMD-SHELL', 'wget -q -O - http://localhost:8080/health || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      # Grace window for migrate-then-serve so early probes don't burn the retry budget.
+      start_period: 30s
+    # No `ports:` — api is internal-only; the browser reaches it only via the web proxy.
+
+  web:
+    build:
+      # Build context is the repo root so the Dockerfile can COPY shared/ (the single
+      # source-of-truth wire contract) alongside web/.
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Same-origin browser calls to /api/* are proxied to this internal address (AD-3).
+      API_INTERNAL_URL: http://api:8080
+      PORT: '3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      # The ONLY host-exposed port — the sole entry point.
+      - '${WEB_PORT:-3000}:3000'
+
+volumes:
+  todo_db_data:
