@@ -1,0 +1,10 @@
+# golangci-lint configuration (v2 schema) — the Go half of the committed quality gate
+# (AC4 / AR15). Run from the api/ dir:  golangci-lint run ./...
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # The "standard" set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard

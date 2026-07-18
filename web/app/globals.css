@@ -1,0 +1,91 @@
+/*
+ * Cream & Terracotta design tokens (AC5, UX-DR1..3).
+ *
+ * BOTH the light (default) and warm-dark value sets are defined here as CSS
+ * variables from day one. The app ships LIGHT-rendered in Story 1.1 — the theme
+ * TOGGLE and first-load `prefers-color-scheme` honoring (RD-6) are deferred to
+ * Epic 3 (Story 3.4). The `-dark` values below are present-but-inactive; Epic 3
+ * activates them by stamping `data-theme="dark"` on <html>.
+ */
+
+:root {
+  /* --- Light palette (active by default) --- */
+  --surface-base: #f5efe6;
+  --surface-raised: #fffcf7;
+  --ink-primary: #2e2a24;
+  --ink-secondary: #8a8072;
+  --ink-muted: #b8ae9e;
+  --accent: #c15a34;
+  --accent-soft: #e9c9b8;
+  --border-hairline: #e5dbcc;
+  --on-accent: #fff9f4;
+
+  /* --- Warm-dark palette (defined now, applied in Epic 3) --- */
+  --surface-base-dark: #221e1a;
+  --surface-raised-dark: #2c2722;
+  --ink-primary-dark: #f0e9de;
+  --ink-secondary-dark: #a69c8c;
+  --ink-muted-dark: #6e655a;
+  --accent-dark: #d97b54;
+  --accent-soft-dark: #4a362b;
+  --border-hairline-dark: #3a332c;
+  --on-accent-dark: #221e1a;
+
+  /* --- Typography --- */
+  --font-sans: ui-rounded, 'SF Pro Rounded', 'Nunito', 'Quicksand', system-ui, sans-serif;
+
+  /* --- Spacing scale (4px base) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* --- Radii --- */
+  --radius-sm: 10px;
+  --radius-md: 13px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* --- Elevation --- */
+  --shadow-row: 0 2px 6px -3px rgba(90, 60, 35, 0.22);
+  --shadow-toast: 0 14px 30px -10px rgba(70, 45, 25, 0.4);
+}
+
+/*
+ * Warm-dark activation seam. Inert in Story 1.1 (nothing sets data-theme). Epic 3
+ * wires the header toggle + RD-6 first-load logic that stamps this attribute.
+ */
+:root[data-theme='dark'] {
+  --surface-base: var(--surface-base-dark);
+  --surface-raised: var(--surface-raised-dark);
+  --ink-primary: var(--ink-primary-dark);
+  --ink-secondary: var(--ink-secondary-dark);
+  --ink-muted: var(--ink-muted-dark);
+  --accent: var(--accent-dark);
+  --accent-soft: var(--accent-soft-dark);
+  --border-hairline: var(--border-hairline-dark);
+  --on-accent: var(--on-accent-dark);
+  --shadow-row: 0 2px 6px -3px rgba(0, 0, 0, 0.5);
+  --shadow-toast: 0 14px 30px -10px rgba(0, 0, 0, 0.65);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--surface-base);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
