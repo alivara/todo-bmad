@@ -16,3 +16,22 @@ _bmad-output/party-mode/
 
 # --- OS / editor cruft ---
 .DS_Store
+
+# --- Runtime env (never commit real secrets; .env.example IS tracked) ---
+.env
+**/.env
+!**/.env.example
+
+# --- web (Next.js / Node) ---
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts
+web/coverage/
+web/playwright-report/
+web/test-results/
+
+# --- api (Go) ---
+api/bin/
+api/tmp/
+*.test
