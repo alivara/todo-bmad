@@ -178,13 +178,17 @@ export function TodoRow({ todo }: { todo: Todo }) {
   }
 
   return (
-    <div style={{ ...cardBaseStyle, ...(isCompleted ? completedCardStyle : activeCardStyle) }}>
+    <div
+      className="todo-card"
+      style={{ ...cardBaseStyle, ...(isCompleted ? completedCardStyle : activeCardStyle) }}
+    >
       <button
         type="button"
         role="checkbox"
         aria-checked={isCompleted}
         aria-label={isCompleted ? `Mark ${todo.title} as active` : `Mark ${todo.title} as complete`}
         onClick={handleToggle}
+        className="focus-ring"
         style={{ ...checkboxBaseStyle, ...(isCompleted ? checkboxCompletedStyle : checkboxActiveStyle) }}
       >
         {isCompleted && (
@@ -312,6 +316,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
                     type="button"
                     onClick={() => setExpanded((v) => !v)}
                     aria-expanded={expanded}
+                    className="focus-ring"
                     style={revealButtonStyle}
                   >
                     {expanded ? 'less' : 'more'}
@@ -390,7 +395,7 @@ function MutationError({ error, onRetry }: { error: Error | null; onRetry: () =>
   return (
     <div role="alert" style={toggleErrorStyle}>
       <span>Something got in the way. </span>
-      <button type="button" onClick={onRetry} style={rowRetryButtonStyle}>
+      <button type="button" onClick={onRetry} className="focus-ring" style={rowRetryButtonStyle}>
         Try again
       </button>
     </div>
@@ -415,12 +420,14 @@ const activeCardStyle: CSSProperties = {
   opacity: 1,
 };
 
-// Recessed completed treatment: transparent surface/border, no shadow, dimmed.
+// Recessed completed treatment: transparent surface/border, no shadow. The recede is expressed
+// via chrome only (transparent card + line-through + the quieter --ink-secondary text) and NOT via
+// opacity — an ancestor opacity would composite over the struck text, so axe's color-contrast would
+// read a dimmed (failing) ratio instead of the true AA value. Full-opacity text keeps the gate honest.
 const completedCardStyle: CSSProperties = {
   background: 'transparent',
   border: '1px solid transparent',
   boxShadow: 'none',
-  opacity: 0.85,
 };
 
 const checkboxBaseStyle: CSSProperties = {
@@ -551,7 +558,10 @@ const timeStyle: CSSProperties = {
 
 const completedTextStyle: CSSProperties = {
   textDecoration: 'line-through',
-  color: 'var(--ink-muted)',
+  // --ink-secondary (not --ink-muted) so completed text clears WCAG AA in both themes (light 5.26:1,
+  // dark 6.11:1). The "quieter/receded" signal is carried by the line-through + the transparent card,
+  // not by a below-AA color or any opacity dimming (Story 3.5).
+  color: 'var(--ink-secondary)',
 };
 
 const toggleErrorStyle: CSSProperties = {

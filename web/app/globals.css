@@ -18,9 +18,10 @@
   --surface-base: #f5efe6;
   --surface-raised: #fffcf7;
   --ink-primary: #2e2a24;
-  --ink-secondary: #8a8072;
+  --ink-secondary: #6b6252;
   --ink-muted: #b8ae9e;
-  --accent: #c15a34;
+  --accent: #b0512f;
+  --accent-strong: #8f3d21;
   --accent-soft: #e9c9b8;
   --border-hairline: #e5dbcc;
   --on-accent: #fff9f4;
@@ -32,6 +33,7 @@
   --ink-secondary-dark: #a69c8c;
   --ink-muted-dark: #6e655a;
   --accent-dark: #d97b54;
+  --accent-strong-dark: #e59873;
   --accent-soft-dark: #4a362b;
   --border-hairline-dark: #3a332c;
   --on-accent-dark: #221e1a;
@@ -70,6 +72,7 @@
   --ink-secondary: var(--ink-secondary-dark);
   --ink-muted: var(--ink-muted-dark);
   --accent: var(--accent-dark);
+  --accent-strong: var(--accent-strong-dark);
   --accent-soft: var(--accent-soft-dark);
   --border-hairline: var(--border-hairline-dark);
   --on-accent: var(--on-accent-dark);
@@ -94,6 +97,34 @@ body {
   font-size: 16px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Shared visible focus ring (Story 3.5). Applied via className alongside a control's inline styles to
+ * every control that lacked a keyboard-visible ring (Add + retry buttons, reveal more/less, Undo,
+ * the checkbox, page/error retries). No ring at rest; a 2px accent ring only on :focus-visible, so
+ * pointer clicks stay clean while keyboard traversal always shows where focus is. Tokens only.
+ */
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Add-input focus (Story 3.5, resolving the 1.2 "blurred still looks focused" defect). The resting
+ * accent border lives inline on the field; the accent-soft glow is moved here to :focus-visible only,
+ * so the halo appears solely while the field is focused instead of being permanently painted.
+ */
+.add-input {
+  outline: none;
+}
+
+.add-input:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /*
@@ -202,6 +233,11 @@ body {
  * wash inside the text box; it doesn't disturb the 2-line clamp/fade or the completed strikethrough.
  */
 .todo-editable {
+  /* position:relative anchors the decorative edit ✎ (::after) top-right of the text box. It's
+     absolutely positioned (not inline-trailing) so the collapsed description's -webkit-line-clamp
+     overflow:hidden can never clip it — the same class rides both the (unclamped) title and the
+     (clamped) description, and this keeps the cue placement uniform and clip-proof (Story 3.5). */
+  position: relative;
   border-radius: var(--radius-sm);
   cursor: text;
   transition: background 150ms ease;
@@ -219,6 +255,64 @@ body {
      2.4.11 (which axe can't test). Keyboard users must see which editable text is focused. */
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/*
+ * Edit ✎ discoverability cue (Story 3.5). A PURELY DECORATIVE pencil ::after — pseudo-elements are
+ * invisible to the accessibility tree, so this adds NO focusable node and NO aria (the real
+ * affordance is the role="button" editable text, untouched). The pencil is an inline SVG delivered
+ * as a mask-image data-URI and tinted with the accent token (so it follows the palette in both
+ * themes). It sits top-right, absolutely positioned, out of text flow and clip-proof for the clamped
+ * description. Default hidden (opacity 0); pointer devices reveal it on hover / :focus-visible;
+ * touch devices (no hover) show it persistently faint so the affordance is discoverable without hover.
+ */
+.todo-editable::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background-color: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z'/%3E%3C/svg%3E")
+    no-repeat center / contain;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+@media (hover: hover) {
+  .todo-editable:hover::after,
+  .todo-editable:focus-visible::after {
+    opacity: 0.6;
+  }
+}
+
+@media (hover: none) {
+  .todo-editable::after {
+    opacity: 0.4;
+  }
+}
+
+/*
+ * Reduced-motion guard, completed (Story 3.5). The two keyframe animations (check-pop, shimmer) are
+ * already cut above; this cuts the remaining short state transitions so an OS reduced-motion
+ * preference is fully honored — the card recede settle, the editable/delete/theme-toggle hover
+ * washes. State still changes instantly; only the decorative motion is removed. `.todo-card` carries
+ * its transition inline, so !important is required to override the element's inline style.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .todo-card {
+    transition: none !important;
+  }
+
+  .todo-editable,
+  .todo-delete,
+  .theme-toggle {
+    transition: none;
+  }
 }
 
 /*

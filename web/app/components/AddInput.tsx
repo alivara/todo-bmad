@@ -64,9 +64,10 @@ export function AddInput() {
         placeholder="Add a task…"
         aria-label="Add a task"
         aria-invalid={overCap || undefined}
+        className="add-input"
         style={inputStyle}
       />
-      <button type="submit" aria-label="Add" style={buttonStyle}>
+      <button type="submit" aria-label="Add" className="focus-ring" style={buttonStyle}>
         Add
       </button>
       {/* The counter is a full-width row (mirrors the error row's flexBasis:100%): hidden until
@@ -91,6 +92,7 @@ export function AddInput() {
               onClick={() => {
                 if (create.variables) create.mutate(create.variables);
               }}
+              className="focus-ring"
               style={retryButtonStyle}
             >
               Try again
@@ -108,23 +110,24 @@ const formStyle: CSSProperties = {
   gap: 'var(--space-2)',
 };
 
+// Resting accent border stays here; the accent-soft glow + outline:none moved to the `.add-input`
+// :focus-visible rule (globals.css) so the halo only paints while focused (Story 3.5). Net: the
+// border is always visible, the glow appears only on focus.
 const inputStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
   background: 'var(--surface-raised)',
   border: '1.5px solid var(--accent)',
   borderRadius: 'var(--radius-sm)',
-  boxShadow: '0 0 0 3px var(--accent-soft)',
   padding: '12px 14px',
   fontFamily: 'var(--font-sans)',
   fontSize: 16,
   color: 'var(--ink-primary)',
-  outline: 'none',
 };
 
 const buttonStyle: CSSProperties = {
   background: 'var(--accent-soft)',
-  color: 'var(--accent)',
+  color: 'var(--accent-strong)',
   border: 'none',
   borderRadius: 'var(--radius-sm)',
   padding: '12px 18px',

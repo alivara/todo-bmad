@@ -65,3 +65,26 @@
 - source_spec: `spec-4-2-ci-integration-e2e-lane-health-gated.md`
   summary: The `integration-e2e` job runs the Go testseed suite in a one-off `golang:1.26-alpine` container with no `GOMODCACHE`/`GOCACHE` volume, so it re-downloads and recompiles all modules every run — slower, and a module-proxy hiccup would flake the step.
   evidence: Correctness is fine (verified passing), this is a reliability/speed nit flagged by both reviewers. Fix: mount a cached module/build dir into the container or cache it via `actions/cache`, or run the tests via a compose-defined go service. Deferred to a CI-optimization pass.
+
+## Story 3.5 shipped / still-deferred (2026-07-19)
+
+> Story 3.5 (responsive polish, voice & accessibility floor) landed the v1 a11y/security floor. This records what SHIPPED (closing several entries above) and what remains explicitly deferred as future hardening — flagged, not pretended done.
+
+**SHIPPED (these close / satisfy the corresponding entries above):**
+
+- **WCAG AA contrast fix in BOTH themes + hard axe contrast gate.** Light `--ink-secondary` #8a8072→#6b6252 and `--accent` #c15a34→#b0512f; new `--accent-strong` (#8f3d21 light / #e59873 dark) for the Add label; completed-row text rerouted `--ink-muted`→`--ink-secondary` (and the completed card's text-dimming `opacity` removed so axe reads the true ratio). `web/tests/e2e/a11y.spec.ts` now asserts the FULL violations array (color-contrast exclusion dropped) across all 5 states, both themes. Closes the story-1.3 contrast entries and the A11Y-1 audit entry.
+- **Edit ✎ discoverability cue.** A decorative `.todo-editable::after` pencil (mask-image data-URI tinted via `--accent`): hover/`:focus-visible` reveal under `@media (hover: hover)`, persistent-faint under `@media (hover: none)` for touch. No new focusable node / no aria (pseudo-elements are invisible to the a11y tree). Closes the Story 2.2 discoverability-gap entry (option (a)).
+- **CSP + security headers + E2E header assertion.** `web/next.config.mjs` `async headers()` (source `/:path*`): CSP + `X-Content-Type-Options: nosniff` + `Referrer-Policy: strict-origin-when-cross-origin` + `X-Frame-Options: DENY`; new `web/tests/e2e/security-headers.spec.ts` asserts them on `/` and `/api/*`. Closes SEC-1.
+- **React-escaping regression test.** `web/tests/stored-xss.test.tsx` locks that a `<img src=x onerror=alert(1)>` title/description renders as escaped text, no live element. Closes SEC-1b.
+- **Visible focus rings on all controls.** Shared `.focus-ring` utility applied to the Add button, both retry buttons, reveal more/less, Undo, the checkbox, and the page/error retries.
+- **Add-input focus fix.** Resting accent border retained; the always-on `boxShadow` glow moved to `.add-input:focus-visible` (resolves the 1.2 "blurred still looks focused" defect).
+- **Reduced-motion guard completed.** The remaining short state transitions (card recede, `.todo-editable`/`.todo-delete`/`.theme-toggle` washes) added to `@media (prefers-reduced-motion: reduce)` (the two keyframe animations were already cut).
+- **Responsive floor.** `viewport` export (device-width + initial-scale + per-scheme themeColor) in `web/app/layout.tsx`.
+
+**STILL-DEFERRED (future a11y/security hardening — NOT done):**
+
+- **Full SR label/role/state coverage** — comprehensive screen-reader names/roles/states beyond the current real-control floor.
+- **`aria-live` announcements** — completion, pending-delete, and undo state changes are not yet announced (the Undo toast still has no `role="status"`/`aria-live`).
+- **Complete keyboard traversal + guaranteed focus-order** — a full, audited tab order across the app.
+- **Residual WCAG 1.4.11 non-text ratio on the active checkbox ring** — after the contrast reroute, `--ink-muted` remains only as the empty active-checkbox ring (≈2.14:1 light / 2.59:1 dark). This is a non-text (1.4.11) ratio that axe's `color-contrast` rule does NOT test, so it is a documented residual, not a gate failure. Revisit with a dedicated ring token if it becomes trivial.
+- **Nonce-based CSP tightening** — `script-src` currently keeps `'unsafe-inline'` for the Story 3.4 inline theme script + Next's inline runtime (a per-request nonce can't be threaded through a streamed `dangerouslySetInnerHTML` script here). Move to a nonce-based policy when practical.

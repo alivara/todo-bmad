@@ -41,7 +41,12 @@ export function UndoToast() {
       ) : (
         <>
           <span style={labelStyle}>{TOAST_LABEL}</span>
-          <button type="button" onClick={() => undo(visible.id)} style={undoButtonStyle}>
+          <button
+            type="button"
+            onClick={() => undo(visible.id)}
+            className="focus-ring"
+            style={undoButtonStyle}
+          >
             {UNDO_LABEL}
           </button>
         </>
