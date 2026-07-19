@@ -82,7 +82,11 @@ test.describe('@e2e @p0 complete a task — toggle + rollback (2.1 / AD-4)', () 
     // error (AC3). The fleeting optimistic 'true' intermediate is asserted deterministically in
     // the gated unit test (use-toggle-todo.test.tsx); here we assert the observable end state +
     // the error surface, so the test cannot pass on a no-op click (it starts unchecked too).
-    await expect(page.getByRole('alert')).toBeVisible();
+    // Next's route announcer (#__next-route-announcer__) also has role="alert" but is empty, so an
+    // unfiltered getByRole('alert') is strict-mode ambiguous (surfaces on mobile). Filtering by the
+    // rollback copy (alert has name-from-content=false, so filter by text, not { name }) excludes the
+    // announcer AND won't false-pass on a *different* alert, while keeping the role assertion.
+    await expect(page.getByRole('alert').filter({ hasText: /something got in the way/i })).toBeVisible();
     await expect(checkbox).toHaveAttribute('aria-checked', 'false');
   });
 });

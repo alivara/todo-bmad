@@ -101,7 +101,11 @@ test.describe('@e2e @p0 edit a task in place — PATCH changed-fields + rollback
     // The rejection rolls the row back visibly to the pre-edit title + surfaces a non-disruptive
     // error. The optimistic intermediate is asserted deterministically in the gated unit test
     // (use-update-todo.test.tsx); here we assert the observable end state + the error surface.
-    await expect(page.getByRole('alert')).toBeVisible();
+    // Next's route announcer (#__next-route-announcer__) also has role="alert" but is empty, so an
+    // unfiltered getByRole('alert') is strict-mode ambiguous (surfaces on mobile). Filtering by the
+    // rollback copy (alert has name-from-content=false, so filter by text, not { name }) excludes the
+    // announcer AND won't false-pass on a *different* alert, while keeping the role assertion.
+    await expect(page.getByRole('alert').filter({ hasText: /something got in the way/i })).toBeVisible();
     await expect(page.getByText('Draft the proposal')).toBeVisible();
     await expect(page.getByText('A different title')).toHaveCount(0);
   });

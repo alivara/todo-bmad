@@ -23,10 +23,10 @@ jobs:
         working-directory: web
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -52,10 +52,10 @@ jobs:
         working-directory: api
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
@@ -78,4 +78,98 @@ jobs:
           working-directory: api
 
       - name: Unit tests (go test)
-        run: go test ./...
+        run: |
+          # Run with -json to surface a Markdown report, but PRESERVE go test's exit status.
+          # Capture ${PIPESTATUS[0]} immediately after the pipeline with NO trailing `|| true`
+          # (which would run `true` and clobber PIPESTATUS -> a setup/command-level failure that
+          # writes only to stderr, e.g. a stale go.sum, would falsely pass). We read [0] (go test),
+          # not the pipeline's tail, so grep matching nothing is harmless. Write JSON to a temp
+          # path so no artifact lands in api/.
+          gt="$RUNNER_TEMP/gotest.json"
+          set +e
+          go test -json ./... | tee "$gt" | jq -r 'select(.Action=="output") | .Output' | grep -E '^(ok|FAIL|---)'
+          status=${PIPESTATUS[0]}
+          set -e
+          pass=$(jq -r 'select(.Test and .Action=="pass").Test' "$gt" | wc -l | tr -d ' ')
+          fail=$(jq -r 'select(.Test and .Action=="fail").Test' "$gt" | wc -l | tr -d ' ')
+          skip=$(jq -r 'select(.Test and .Action=="skip").Test' "$gt" | wc -l | tr -d ' ')
+          {
+            echo "## Go Test Report"
+            echo "- ✅ Passed: $pass"
+            echo "- ❌ Failed: $fail"
+            echo "- ⏭️ Skipped: $skip"
+            if [ "$fail" != "0" ]; then
+              echo ""; echo "**Failed:**"
+              jq -r 'select(.Test and .Action=="fail") | "- `" + .Test + "`"' "$gt"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+  integration-e2e:
+    name: integration-e2e (dockerized stack)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Install Playwright browsers (chromium + webkit)
+        # chromium = `e2e` (Desktop Chrome); webkit = `e2e-mobile` (devices['iPhone SE']
+        # defaults to WebKit). Both are required or the e2e-mobile project fails to launch.
+        run: npx playwright install --with-deps chromium webkit
+        working-directory: web
+
+      - name: Bring up stack (testseed profile)
+        run: docker compose -p todoci -f docker-compose.yml -f docker-compose.test.yml up --build -d --wait --wait-timeout 240
+
+      - name: Health gate (GET /api/health)
+        run: |
+          # Bounded retry poll of the proxied health path (db/api are host-unreachable per
+          # AD-12). No fixed-sleep-then-assume gate — fail the step if never ready.
+          for i in $(seq 1 60); do
+            curl -fsS -m 5 http://localhost:3000/api/health && break
+            [ "$i" = 60 ] && { echo "stack not healthy"; exit 1; }
+            sleep 2
+          done
+
+      - name: API integration tests (Go testseed suite)
+        run: |
+          docker run --rm --network todoci_default \
+            -v "$GITHUB_WORKSPACE/api":/app -w /app \
+            -e "DATABASE_URL=postgres://todo:todo@db:5432/todo?sslmode=disable" \
+            golang:1.26-alpine go test -tags testseed ./...
+
+      - name: Playwright E2E
+        run: npm run test:e2e -- --reporter=list,html
+        working-directory: web
+        env:
+          BASE_URL: http://localhost:3000
+
+      - name: Collect compose logs on failure
+        if: failure()
+        run: docker compose -p todoci -f docker-compose.yml -f docker-compose.test.yml logs --no-color > compose-logs.txt
+
+      - name: Upload E2E diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics
+          if-no-files-found: ignore
+          path: |
+            web/playwright-report
+            web/test-results
+            compose-logs.txt
+
+      - name: Teardown stack
+        if: always()
+        run: docker compose -p todoci -f docker-compose.yml -f docker-compose.test.yml down -v
