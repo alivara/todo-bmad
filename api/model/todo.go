@@ -26,6 +26,16 @@ const (
 	StatusCompleted = "completed"
 )
 
+// ValidationError is a business-rule violation (AD-10) raised by the service layer and
+// mapped by the handler to a 400 validation_error envelope (AD-9). Keeping the type in
+// the innermost model package lets the handler detect it via errors.As WITHOUT importing
+// the concrete service package — preserving the consumer-owned service interface (AD-1).
+type ValidationError struct {
+	Message string
+}
+
+func (e ValidationError) Error() string { return e.Message }
+
 // APIError is the uniform non-2xx envelope (AD-9): { "error": { "code", "message" } }.
 type APIError struct {
 	Error APIErrorBody `json:"error"`

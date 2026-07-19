@@ -8,10 +8,12 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Build the production binary WITHOUT the `testseed` tag, so the test-only
-# seed/reset seam (api/testhelpers) is never compiled into the shipped image [TC1].
+# Build tags. Empty by default → the production binary is built WITHOUT the `testseed`
+# tag, so the test-only seed/reset seam (api/testhelpers + the reset route) is never
+# compiled into the shipped image [TC1]. The test compose sets GO_BUILD_TAGS=testseed.
+ARG GO_BUILD_TAGS=""
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o /out/api .
+RUN CGO_ENABLED=0 GOOS=linux go build -tags "$GO_BUILD_TAGS" -o /out/api .
 
 # --- runtime stage ---
 FROM alpine:3.20

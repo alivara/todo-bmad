@@ -5,6 +5,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -18,7 +19,16 @@ import (
 // service type and makes handler tests trivial to stub.
 type TodoService interface {
 	ListTodos(ctx context.Context) ([]model.Todo, error)
+	CreateTodo(ctx context.Context, title, description string) (model.Todo, error)
 	Health(ctx context.Context) error
+}
+
+// createTodoRequest mirrors shared/todo.ts CreateTodoRequest. Binding into a struct with
+// ONLY title + description means any client-supplied id/status/metadata is ignored (AD-6);
+// an absent description decodes to "" (Go zero value), never null.
+type createTodoRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 // NewRouter builds the Gin engine with all api routes registered.
@@ -28,6 +38,7 @@ func NewRouter(svc TodoService) *gin.Engine {
 
 	r.GET("/health", health(svc))
 	r.GET("/todos", listTodos(svc))
+	r.POST("/todos", createTodo(svc))
 
 	return r
 }
@@ -62,5 +73,40 @@ func listTodos(svc TodoService) gin.HandlerFunc {
 		// The serializer maps the domain slice to the AD-6 wire shape and always
 		// returns a non-nil slice, so an empty list is [] and never null.
 		c.JSON(http.StatusOK, toTodoResponses(todos))
+	}
+}
+
+// createTodo handles POST /todos: bind the body, delegate to the service (which owns
+// validation, AD-1/AD-10), and map the result to a status code. A validation failure is
+// the AD-9 400 validation_error envelope; success is 201 + the full AD-6 resource (the
+// client needs it for the AD-7 temp-id swap).
+func createTodo(svc TodoService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req createTodoRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			// A malformed/absent JSON body is a client error, not a server fault.
+			c.JSON(http.StatusBadRequest,
+				model.NewAPIError(model.CodeValidationError, "invalid request body"))
+			return
+		}
+
+		created, err := svc.CreateTodo(c.Request.Context(), req.Title, req.Description)
+		if err != nil {
+			// A ValidationError maps to 400; anything else is an unexpected 500. errors.As
+			// lets the handler recognize the service's error without importing the service
+			// package (the type lives in model).
+			var ve model.ValidationError
+			if errors.As(err, &ve) {
+				c.JSON(http.StatusBadRequest,
+					model.NewAPIError(model.CodeValidationError, ve.Error()))
+				return
+			}
+			slog.Error("create todo failed", "error", err)
+			c.JSON(http.StatusInternalServerError,
+				model.NewAPIError(model.CodeInternalError, "failed to create todo"))
+			return
+		}
+
+		c.JSON(http.StatusCreated, toTodoResponse(created))
 	}
 }
