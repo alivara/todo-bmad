@@ -2,7 +2,7 @@
 title: Todo App PRD
 status: final
 created: 2026-07-17
-updated: 2026-07-17
+updated: 2026-07-19
 ---
 
 # Todo App — Product Requirements Document
@@ -163,6 +163,7 @@ The first version intentionally excludes the following to preserve a clean, reli
 - User accounts / authentication, multi-user support, collaboration & sharing
 - Task prioritization, manual reordering, deadlines / due dates, reminders / notifications
 - Categories / tags / projects, search & filtering, recurring tasks
+- One-click data **export / import** and hosted→self-host migration (v1 launches self-host-only, where the user already owns their data directly in their own datastore under an open-source license; a one-click export/migration UI ships with the hosted tier in v2 — see Future Considerations)
 - Accessibility as a hard v1 commitment (deferred, not rejected — see Future Considerations)
 
 ## 8. Future Considerations
@@ -171,6 +172,9 @@ These are explicitly deferred, and the architecture (NFR8) is designed not to pr
 
 - Authentication and multi-user support (per-user todo lists)
 - Collaboration / sharing
+- **Data export/portability** — one-click open-format export + a hosted→self-host migration path. This is the "exercisable ownership" capability from the Ember PRFAQ (`../../prfaq-todo-app.md`): the concrete proof behind the "you own it" promise. It is **deferred to v2 and scoped to ship with the hosted tier**, because at the self-host-only v1 launch the user already holds their data and code directly. Cheap to build (the list API already returns the full dataset); its value is highest for hosted users who want to leave. **[Added 2026-07-19, reconciling the v1 PRD with the downstream business model — kept out of v1 to avoid re-opening the sprint/stories.]**
+- **Import** from other task apps (Todoist / TickTick) — a fast-follow that lowers switching cost for the subscription-fatigue segment
+- The **commercial layer** (managed hosting, paid team tier, multi-tenancy, billing, open-core feature-gating) — its own future PRD + architecture extension; see `../../prfaq-todo-app-distillate.md` and `../../innovation-strategy-2026-07-19.md`
 - Task prioritization, deadlines, reminders / notifications
 - Additional `status` lifecycle states (e.g., `in_progress`, `archived`)
 - Accessibility hardening (full keyboard operability, screen-reader labels, `prefers-reduced-motion` support — OQ3)

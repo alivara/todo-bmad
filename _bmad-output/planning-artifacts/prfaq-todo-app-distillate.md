@@ -23,12 +23,16 @@ Companion to `prfaq-todo-app.md`. Upstream inputs: `innovation-strategy-2026-07-
 - Simplicity/minimalism as the MOAT — REJECTED by founder as an honest v1 *limitation*, not a differentiator. Never sell "we do less" as the value.
 
 ## The moat (redefined, honest)
-Stack of three, none is "simple": (1) **exercisable ownership** (one-click open-format export + hosted→self-host migration — structurally impossible for cloud incumbents); (2) **credible longevity** (real business model = anti-Focalboard promise, this buyer's #1 want); (3) **effortless LIGHT self-host** (one command; no MongoDB/Elasticsearch sprawl — edge vs heavy AppFlowy/Huly). Plus brand/trust velocity + personal→team data-gravity. NOT durable individually — combination + execution speed. Watch AppFlowy going lighter.
+Stack of three, none is "simple": (1) **exercisable ownership** — at v1 (self-host-only launch) this is literal: data in the user's own DB + AGPL code, structurally impossible for cloud incumbents to match. One-click export + hosted→self-host migration (which generalizes ownership to hosted users) is **v2, ships with the hosted tier** — see DEFERRAL below. (2) **credible longevity** (real business model = anti-Focalboard promise, this buyer's #1 want); (3) **effortless LIGHT self-host** (one command; no MongoDB/Elasticsearch sprawl — edge vs heavy AppFlowy/Huly). Plus brand/trust velocity + personal→team data-gravity. NOT durable individually — combination + execution speed. Watch AppFlowy going lighter.
+
+## DEFERRAL (2026-07-19): export → v2
+Export/migration reclassified from "v1 promise" to v2 (hosted tier). Reason: self-host-only launch already gives data ownership; export's value is highest for hosted users (v2); adding to v1 would re-open sprint/stories. Docs reconciled: PRD §7/§8 name it v2; PRFAQ ownership copy reworded to "self-host ownership now, export/migration on roadmap." Self-host beachhead's ownership moat intact at launch.
 
 ## Requirements signals for PRD
-- **v1 (in):** create/view/edit/complete/delete-with-undo (Epics 1–3 already planned); calm warm UX (Cream & Terracotta, no streaks/badges); one-command `docker compose up` self-host; **one-click export to open format (NEW v1 promise)**; safe-by-default self-host security + clear docs; responsive web from ~375px.
+- **v1 (in):** create/view/edit/complete/delete-with-undo (Epics 1–3 already planned); calm warm UX (Cream & Terracotta, no streaks/badges); one-command `docker compose up` self-host; safe-by-default self-host security + clear docs; responsive web from ~375px.
 - **v1 (single-user):** NO auth/multi-user in first cut.
-- **Fast-follow (priority order):** (1) **Import from Todoist/TickTick** — gates subscription-refugee conversion, borderline launch-blocker; (2) **hosted managed tier** (waitlist→live) — gates non-technical hero; (3) hosted↔self-host migration path; (4) PWA + offline; (5) public "what's always free" pledge; (6) trademark clearance on "Ember".
+- **v2 (deferred 2026-07-19):** one-click export to open format + hosted→self-host migration — ships WITH the hosted tier, NOT v1 (self-host launch already confers ownership; keeps v1 sprint untouched).
+- **Fast-follow (priority order):** (1) **Import from Todoist/TickTick** — gates subscription-refugee conversion, borderline launch-blocker; (2) **hosted managed tier** (waitlist→live) — gates non-technical hero, bundles export/migration; (3) PWA + offline; (4) public "what's always free" pledge; (5) trademark clearance on "Ember".
 - **Phase 2:** multi-tenant hosted architecture (undesigned); **team tier** (SSO/RBAC/audit) via AD-2 seam = the revenue engine.
 - **Deferred/hard:** local-first/offline CRDT sync (competitive gap vs AppFlowy, genuinely hard).
 - **Say NO to (positioning discipline):** native mobile at launch, workspace/Notion features (ever), integrations/API beyond basics initially.
