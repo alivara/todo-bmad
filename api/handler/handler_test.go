@@ -357,6 +357,84 @@ func TestUpdateTodo_UnknownIdIs404(t *testing.T) {
 	}
 }
 
+// 2.2 AC: a title-only PATCH returns 200 + the full AD-6 resource with the updated title. The
+// handler must decode the title as a non-nil pointer and forward it, leaving description/status
+// nil (unchanged — absent means unchanged, never a zero-value overwrite, AD-6).
+func TestUpdateTodo_TitleReturns200AndForwardsPointer(t *testing.T) {
+	ts := time.Date(2026, 7, 17, 14, 3, 11, 0, time.UTC)
+	bumped := time.Date(2026, 7, 17, 15, 0, 0, 0, time.UTC)
+	svc := &stubService{updated: model.Todo{
+		ID:          "44444444-4444-4444-8444-444444444444",
+		Title:       "Email Sam the Q4 numbers",
+		Description: "keep me",
+		Status:      model.StatusActive,
+		CreatedAt:   ts,
+		UpdatedAt:   bumped,
+	}}
+
+	rec := doPATCH(t, svc, "/todos/44444444-4444-4444-8444-444444444444", `{"title":"Email Sam the Q4 numbers"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if svc.lastUpdate == nil {
+		t.Fatalf("service was not called")
+	}
+	if svc.lastUpdate.title == nil || *svc.lastUpdate.title != "Email Sam the Q4 numbers" {
+		t.Fatalf("title = %v, want pointer to the new title", svc.lastUpdate.title)
+	}
+	// Absent description + status forward as nil (unchanged), never a zero-value overwrite.
+	if svc.lastUpdate.description != nil || svc.lastUpdate.stat != nil {
+		t.Fatalf("absent fields must forward as nil, got desc=%v status=%v",
+			svc.lastUpdate.description, svc.lastUpdate.stat)
+	}
+
+	var row map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &row); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if row["title"] != "Email Sam the Q4 numbers" {
+		t.Fatalf("title = %v, want the updated title", row["title"])
+	}
+}
+
+// 2.2 AC (the crux): an intentional description CLEAR sends `"description":""` — the handler must
+// decode this to a NON-NIL *string("") reaching the service (present, empty = clear), distinct
+// from an OMITTED description which decodes to nil (unchanged). This is the absent-vs-explicit-""
+// distinction the pointer binding exists for (AD-6).
+func TestUpdateTodo_DescriptionClearDecodesNonNilEmptyPointer(t *testing.T) {
+	// description:"" present → non-nil pointer to "".
+	svcClear := &stubService{updated: model.Todo{ID: "id", Status: model.StatusActive}}
+	doPATCH(t, svcClear, "/todos/id", `{"description":""}`)
+
+	if svcClear.lastUpdate == nil {
+		t.Fatalf("service was not called")
+	}
+	if svcClear.lastUpdate.description == nil {
+		t.Fatalf("description = nil, want a non-nil *string(\"\") — an intentional clear must reach the service")
+	}
+	if *svcClear.lastUpdate.description != "" {
+		t.Fatalf("description = %q, want empty string (the clear value)", *svcClear.lastUpdate.description)
+	}
+	// A clear touches only description; title/status stay nil (unchanged).
+	if svcClear.lastUpdate.title != nil || svcClear.lastUpdate.stat != nil {
+		t.Fatalf("clear must leave title/status nil, got title=%v status=%v",
+			svcClear.lastUpdate.title, svcClear.lastUpdate.stat)
+	}
+
+	// An OMITTED description (a title-only patch) → nil (unchanged), NOT an empty-string overwrite.
+	svcOmit := &stubService{updated: model.Todo{ID: "id", Status: model.StatusActive}}
+	doPATCH(t, svcOmit, "/todos/id", `{"title":"only the title"}`)
+
+	if svcOmit.lastUpdate == nil {
+		t.Fatalf("service was not called")
+	}
+	if svcOmit.lastUpdate.description != nil {
+		t.Fatalf("omitted description = %v, want nil (unchanged — never a zero-value overwrite)",
+			*svcOmit.lastUpdate.description)
+	}
+}
+
 // An unexpected (non-validation) error maps to the AD-9 500 internal_error envelope.
 func TestCreateTodo_UnexpectedErrorIs500(t *testing.T) {
 	rec := doPOST(t, &stubService{createErr: errors.New("db down")}, "/todos", `{"title":"hi"}`)

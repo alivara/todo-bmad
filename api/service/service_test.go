@@ -237,6 +237,68 @@ func TestUpdateTodo_TitleValidatedAndTrimmed(t *testing.T) {
 	}
 }
 
+// 2.2 AC (the crux): a description CLEAR — a non-nil *string("") — forwards to the repository as
+// a non-nil empty pointer with NO validation error. "" is a valid description (optional, blank
+// allowed), and it must stay PRESENT (not be dropped to nil) so the repository writes the clear,
+// distinct from an omitted/unchanged description (AD-6).
+func TestUpdateTodo_DescriptionClearForwardsNonNilEmpty(t *testing.T) {
+	repo := &stubRepo{updateReturn: model.Todo{ID: "id", Description: ""}}
+	if _, err := New(repo).UpdateTodo(context.Background(), "id", nil, strptr(""), nil); err != nil {
+		t.Fatalf("description clear: unexpected err %v", err)
+	}
+	if repo.updateCalls != 1 {
+		t.Fatalf("repository called %d times, want 1", repo.updateCalls)
+	}
+	if repo.gotUpDesc == nil {
+		t.Fatalf("repo description = nil, want a non-nil *string(\"\") — the clear must reach the repo")
+	}
+	if *repo.gotUpDesc != "" {
+		t.Fatalf("repo description = %q, want empty string", *repo.gotUpDesc)
+	}
+	// Only description was in the patch; title/status stay nil (unchanged).
+	if repo.gotUpTitle != nil || repo.gotUpStatus != nil {
+		t.Fatalf("title/status must forward as nil (unchanged) for a description-only clear")
+	}
+}
+
+// 2.2 AC: a provided description over the 2000 code-point cap is rejected as a ValidationError
+// pre-repo (the SAME trim+rune-cap helper CreateTodo uses); the repository is never called.
+func TestUpdateTodo_DescriptionOverCapRejected(t *testing.T) {
+	repo := &stubRepo{}
+	if _, err := New(repo).UpdateTodo(context.Background(), "id", nil, strptr(strings.Repeat("d", 2001)), nil); !isValidationErr(err) {
+		t.Fatalf("2001-char description: err = %v, want ValidationError", err)
+	}
+	if repo.updateCalls != 0 {
+		t.Fatalf("repository called on invalid description")
+	}
+
+	// The boundary passes: exactly 2000 code points after trim is accepted and forwarded.
+	repoOk := &stubRepo{updateReturn: model.Todo{ID: "id"}}
+	if _, err := New(repoOk).UpdateTodo(context.Background(), "id", nil, strptr(strings.Repeat("d", 2000)), nil); err != nil {
+		t.Fatalf("2000-char description: unexpected err %v", err)
+	}
+	if repoOk.gotUpDesc == nil || *repoOk.gotUpDesc != strings.Repeat("d", 2000) {
+		t.Fatalf("repo description not forwarded at the 2000 boundary")
+	}
+}
+
+// 2.2 AC: an edit that blanks the title (empty or whitespace-only) is rejected as a
+// ValidationError pre-repo — an edit may not clear the title (matching Create's required rule);
+// the repository is never called.
+func TestUpdateTodo_EmptyOrWhitespaceTitleRejected(t *testing.T) {
+	for _, title := range []string{"", "   ", "\t\n "} {
+		repo := &stubRepo{}
+		_, err := New(repo).UpdateTodo(context.Background(), "id", strptr(title), nil, nil)
+
+		if !isValidationErr(err) {
+			t.Fatalf("title %q: err = %v, want ValidationError", title, err)
+		}
+		if repo.updateCalls != 0 {
+			t.Fatalf("title %q: repository called %d times, want 0", title, repo.updateCalls)
+		}
+	}
+}
+
 // 2.1: an empty patch (all fields nil) is a valid no-op — it passes straight through to the
 // repository (which returns the current row) with no validation error.
 func TestUpdateTodo_EmptyPatchPassesThrough(t *testing.T) {
