@@ -60,3 +60,8 @@
 - source_spec: `accessibility-audit.md` (A11Y-1)
   summary: color-contrast (WCAG 1.4.3, serious) below AA — CONFIRMS the story-1.3 contrast entries with axe evidence, and adds a NEW node not previously catalogued: the "Add" submit button (`button[type="submit"]`) flags in all three states.
   evidence: Root causes — `--ink-secondary` (#8a8072 ≈3.8:1: relative time, empty-state copy, edit hint, reveal `more` button); completed-row `--ink-muted` (#b8ae9e ≈1.9:1, now LIVE since Story 2.1 shipped completion); and the "Add" button label/background ratio (verify `--on-accent` on `--accent`). Fix = darken `--ink-secondary` toward ~#6f6656 (≥4.6:1), bump completed-text token ≥4.5:1, and correct the submit-button contrast — all palette/design decisions needing sign-off. Then remove the `color-contrast` exclusion in a11y.spec.ts.
+## Deferred from: expert review of story-4.2 (2026-07-19, Gopher + Pixel)
+
+- source_spec: `spec-4-2-ci-integration-e2e-lane-health-gated.md`
+  summary: The `integration-e2e` job runs the Go testseed suite in a one-off `golang:1.26-alpine` container with no `GOMODCACHE`/`GOCACHE` volume, so it re-downloads and recompiles all modules every run — slower, and a module-proxy hiccup would flake the step.
+  evidence: Correctness is fine (verified passing), this is a reliability/speed nit flagged by both reviewers. Fix: mount a cached module/build dir into the container or cache it via `actions/cache`, or run the tests via a compose-defined go service. Deferred to a CI-optimization pass.
