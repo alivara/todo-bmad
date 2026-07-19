@@ -96,6 +96,39 @@ describe('AddInput', () => {
     expect(postCalls(fetchMock)).toHaveLength(0);
   });
 
+  // Story 3.3 — progressive counter: hidden at rest, appears within 20 of the cap.
+  it('hides the char counter for a short title (RD-2)', () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Book dentist' } });
+    expect(screen.queryByText('/ 200', { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('shows the accent-bold counter as the title nears the 200 cap (RD-2)', () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a'.repeat(184) } });
+    const current = screen.getByText('184');
+    expect(current).toHaveStyle({ color: 'var(--accent)', fontWeight: 700 });
+    expect(screen.getByText('/ 200', { exact: false })).toBeInTheDocument();
+  });
+
+  it('shows the overage over cap while the submit stays blocked (RD-3 unchanged)', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'a'.repeat(201) } });
+    // The counter conveys "over" via the overage number, not a red token.
+    expect(screen.getByText('201')).toBeInTheDocument();
+    fireEvent.submit(input.closest('form')!);
+
+    await Promise.resolve();
+    expect(postCalls(fetchMock)).toHaveLength(0);
+  });
+
   // AC6 / CM2: a rejected add rolls back visibly and shows a non-disruptive error, and
   // the list reconciles to server truth (nothing persisted). Uses the REAL useCreateTodo
   // hook + a list bound to the same query cache.
