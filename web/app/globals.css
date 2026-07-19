@@ -214,3 +214,73 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/*
+ * Theme toggle (Story 3.4). A ghost icon button mirroring the .todo-delete idiom: quiet at rest in
+ * --ink-secondary, emphasizing to the terracotta accent over an --accent-soft wash on hover (pointer
+ * devices only) and on :focus-visible so keyboard users get a visible ring. Chrome from tokens only —
+ * dark is served by the CSS-variable seam. The sun/moon glyphs are swapped by data-theme below, not
+ * by JS, so there's no theme-dependent render (no hydration mismatch).
+ */
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+@media (hover: hover) {
+  .theme-toggle:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Icon visibility by theme. Default (light, bare :root) shows the sun; dark shows the moon. Both
+ * SVGs are always in the DOM — CSS alone decides which is visible, so the toggle needs no React
+ * theme state.
+ */
+.theme-toggle .icon-moon {
+  display: none;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-sun {
+  display: none;
+}
+
+:root[data-theme='dark'] .theme-toggle .icon-moon {
+  display: inline-flex;
+}
+
+/*
+ * Placeholder avatar (Story 3.4). A non-interactive, aria-hidden decorative circle (a forward
+ * gesture — no login). ~32px --radius-full field in --accent-soft holding an --accent person glyph.
+ * Not a button, not focusable, nothing on tap.
+ */
+.avatar-placeholder {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
