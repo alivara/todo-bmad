@@ -1,0 +1,992 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>db: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/todo-app/api/db/db.go (0.0%)</option>
+				
+				<option value="file1">github.com/todo-app/api/handler/handler.go (92.9%)</option>
+				
+				<option value="file2">github.com/todo-app/api/handler/wire.go (100.0%)</option>
+				
+				<option value="file3">github.com/todo-app/api/main.go (0.0%)</option>
+				
+				<option value="file4">github.com/todo-app/api/model/todo.go (0.0%)</option>
+				
+				<option value="file5">github.com/todo-app/api/repository/repository.go (81.2%)</option>
+				
+				<option value="file6">github.com/todo-app/api/service/service.go (94.3%)</option>
+				
+				<option value="file7">github.com/todo-app/api/testhelpers/seed.go (0.0%)</option>
+				
+				<option value="file8">github.com/todo-app/api/testroutes_testseed.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">// Package db wires the api to PostgreSQL: it runs the embedded migrations on boot
+// (AD-11) and opens the connection pool used by the repository. It is infrastructure
+// glue owned by main — the layered handler/service/repository code never imports it.
+package db
+
+import (
+        "context"
+        "errors"
+        "fmt"
+        "io/fs"
+
+        "github.com/golang-migrate/migrate/v4"
+        _ "github.com/golang-migrate/migrate/v4/database/postgres" // registers the "postgres" database driver
+        "github.com/golang-migrate/migrate/v4/source/iofs"
+        "github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Migrate applies all pending up migrations embedded in the binary, before the api
+// serves (AD-11). It is idempotent: ErrNoChange is treated as success.
+func Migrate(databaseURL string, migrationFS fs.FS) error <span class="cov0" title="0">{
+        src, err := iofs.New(migrationFS, ".")
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("open embedded migrations: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">m, err := migrate.NewWithSourceInstance("iofs", src, databaseURL)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("init migrator: %w", err)
+        }</span>
+        // Best-effort close of the migrator's own resources when done.
+        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{ _, _ = m.Close() }</span>()
+
+        <span class="cov0" title="0">if err := m.Up(); err != nil &amp;&amp; !errors.Is(err, migrate.ErrNoChange) </span><span class="cov0" title="0">{
+                return fmt.Errorf("apply migrations: %w", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Connect opens a pgx connection pool and verifies it with a ping.
+func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) <span class="cov0" title="0">{
+        pool, err := pgxpool.New(ctx, databaseURL)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("open pool: %w", err)
+        }</span>
+        <span class="cov0" title="0">if err := pool.Ping(ctx); err != nil </span><span class="cov0" title="0">{
+                pool.Close()
+                return nil, fmt.Errorf("ping db: %w", err)
+        }</span>
+        <span class="cov0" title="0">return pool, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Package handler owns HTTP concerns only (AD-1): routing, request parsing, and
+// mapping results/errors to status codes. It never touches SQL and never holds
+// business rules — it delegates to the service.
+package handler
+
+import (
+        "context"
+        "errors"
+        "log/slog"
+        "net/http"
+
+        "github.com/gin-gonic/gin"
+
+        "github.com/todo-app/api/model"
+)
+
+// TodoService is the slice of the service the handlers need. Declaring it here (an
+// interface owned by the consumer) keeps the handler decoupled from the concrete
+// service type and makes handler tests trivial to stub.
+type TodoService interface {
+        ListTodos(ctx context.Context) ([]model.Todo, error)
+        CreateTodo(ctx context.Context, title, description string) (model.Todo, error)
+        UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error)
+        DeleteTodo(ctx context.Context, id string) error
+        Health(ctx context.Context) error
+}
+
+// createTodoRequest mirrors shared/todo.ts CreateTodoRequest. Binding into a struct with
+// ONLY title + description means any client-supplied id/status/metadata is ignored (AD-6);
+// an absent description decodes to "" (Go zero value), never null.
+type createTodoRequest struct {
+        Title       string `json:"title"`
+        Description string `json:"description"`
+}
+
+// updateTodoRequest mirrors shared/todo.ts UpdateTodoRequest. Fields are POINTERS so an
+// absent field decodes to nil = unchanged (AD-6), never a zero-value overwrite. Any
+// combination is atomic in one call.
+type updateTodoRequest struct {
+        Title       *string `json:"title"`
+        Description *string `json:"description"`
+        Status      *string `json:"status"`
+}
+
+// NewRouter builds the Gin engine with all api routes registered.
+func NewRouter(svc TodoService) *gin.Engine <span class="cov8" title="1">{
+        r := gin.New()
+        // Custom recovery so a panic (nil deref, driver panic, …) is caught AND returned as the AD-9
+        // envelope — Gin's default Recovery aborts with a bare, bodyless 500 that escapes the uniform
+        // error contract (AC1: EVERY non-2xx is enveloped). The process stays up; the panic is logged.
+        r.Use(gin.CustomRecovery(func(c *gin.Context, err any) </span><span class="cov8" title="1">{
+                slog.Error("panic recovered", "error", err, "path", c.Request.URL.Path)
+                c.AbortWithStatusJSON(http.StatusInternalServerError,
+                        model.NewAPIError(model.CodeInternalError, "internal error"))
+        }</span>))
+
+        <span class="cov8" title="1">r.GET("/health", health(svc))
+        r.GET("/todos", listTodos(svc))
+        r.POST("/todos", createTodo(svc))
+        r.PATCH("/todos/:id", updateTodo(svc))
+        r.DELETE("/todos/:id", deleteTodo(svc))
+
+        // AC1 gap: an unmatched path would otherwise return Gin's plaintext 404, escaping the AD-9
+        // envelope. NoRoute keeps every non-2xx inside the uniform { error: { code, message } } shape.
+        // With HandleMethodNotAllowed off (the default), a wrong method on an existing path also falls
+        // through here, so this one handler covers unmatched-path AND wrong-method (405 is out of scope
+        // — the vocab has no 405 code).
+        r.NoRoute(func(c *gin.Context) </span><span class="cov8" title="1">{
+                c.JSON(http.StatusNotFound, model.NewAPIError(model.CodeNotFound, "route not found"))
+        }</span>)
+
+        <span class="cov8" title="1">return r</span>
+}
+
+// health is the readiness probe (AD-12): reports migrated + serving. Migrations have
+// already run by the time the router is serving; here we additionally confirm the
+// datastore is reachable so the compose healthcheck reflects true readiness.
+func health(svc TodoService) gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                if err := svc.Health(c.Request.Context()); err != nil </span><span class="cov8" title="1">{
+                        slog.Error("health check failed", "error", err)
+                        // AD-9: every non-2xx uses the uniform error envelope.
+                        c.JSON(http.StatusServiceUnavailable,
+                                model.NewAPIError(model.CodeInternalError, "service unavailable"))
+                        return
+                }</span>
+                <span class="cov8" title="1">c.JSON(http.StatusOK, gin.H{"status": "ok"})</span>
+        }
+}
+
+// listTodos returns the full list newest-first. The slice is guaranteed non-nil so
+// an empty list serializes as [] and never null (AD-6).
+func listTodos(svc TodoService) gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                todos, err := svc.ListTodos(c.Request.Context())
+                if err != nil </span><span class="cov8" title="1">{
+                        slog.Error("list todos failed", "error", err)
+                        c.JSON(http.StatusInternalServerError,
+                                model.NewAPIError(model.CodeInternalError, "failed to list todos"))
+                        return
+                }</span>
+                // The serializer maps the domain slice to the AD-6 wire shape and always
+                // returns a non-nil slice, so an empty list is [] and never null.
+                <span class="cov8" title="1">c.JSON(http.StatusOK, toTodoResponses(todos))</span>
+        }
+}
+
+// createTodo handles POST /todos: bind the body, delegate to the service (which owns
+// validation, AD-1/AD-10), and map the result to a status code. A validation failure is
+// the AD-9 400 validation_error envelope; success is 201 + the full AD-6 resource (the
+// client needs it for the AD-7 temp-id swap).
+func createTodo(svc TodoService) gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                var req createTodoRequest
+                if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov8" title="1">{
+                        // A malformed/absent JSON body is a client error, not a server fault.
+                        c.JSON(http.StatusBadRequest,
+                                model.NewAPIError(model.CodeValidationError, "invalid request body"))
+                        return
+                }</span>
+
+                <span class="cov8" title="1">created, err := svc.CreateTodo(c.Request.Context(), req.Title, req.Description)
+                if err != nil </span><span class="cov8" title="1">{
+                        // A ValidationError maps to 400; anything else is an unexpected 500. errors.As
+                        // lets the handler recognize the service's error without importing the service
+                        // package (the type lives in model).
+                        var ve model.ValidationError
+                        if errors.As(err, &amp;ve) </span><span class="cov8" title="1">{
+                                c.JSON(http.StatusBadRequest,
+                                        model.NewAPIError(model.CodeValidationError, ve.Error()))
+                                return
+                        }</span>
+                        <span class="cov8" title="1">slog.Error("create todo failed", "error", err)
+                        c.JSON(http.StatusInternalServerError,
+                                model.NewAPIError(model.CodeInternalError, "failed to create todo"))
+                        return</span>
+                }
+
+                <span class="cov8" title="1">c.JSON(http.StatusCreated, toTodoResponse(created))</span>
+        }
+}
+
+// updateTodo handles PATCH /todos/:id (AD-6 partial update): bind the pointer body (absent =
+// unchanged), read the id from the path, delegate to the service (which owns validation and
+// the AD-8 status allow-list), and map the result. A ValidationError → 400 validation_error;
+// a NotFoundError (unknown id) → 404 not_found; anything else → 500 internal_error; success →
+// 200 + the full AD-6 resource (reusing toTodoResponse) with the server-bumped updatedAt.
+func updateTodo(svc TodoService) gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                var req updateTodoRequest
+                if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusBadRequest,
+                                model.NewAPIError(model.CodeValidationError, "invalid request body"))
+                        return
+                }</span>
+
+                <span class="cov8" title="1">updated, err := svc.UpdateTodo(c.Request.Context(), c.Param("id"), req.Title, req.Description, req.Status)
+                if err != nil </span><span class="cov8" title="1">{
+                        var ve model.ValidationError
+                        if errors.As(err, &amp;ve) </span><span class="cov8" title="1">{
+                                c.JSON(http.StatusBadRequest,
+                                        model.NewAPIError(model.CodeValidationError, ve.Error()))
+                                return
+                        }</span>
+                        <span class="cov8" title="1">var nfe model.NotFoundError
+                        if errors.As(err, &amp;nfe) </span><span class="cov8" title="1">{
+                                c.JSON(http.StatusNotFound,
+                                        model.NewAPIError(model.CodeNotFound, nfe.Error()))
+                                return
+                        }</span>
+                        <span class="cov0" title="0">slog.Error("update todo failed", "error", err)
+                        c.JSON(http.StatusInternalServerError,
+                                model.NewAPIError(model.CodeInternalError, "failed to update todo"))
+                        return</span>
+                }
+
+                <span class="cov8" title="1">c.JSON(http.StatusOK, toTodoResponse(updated))</span>
+        }
+}
+
+// deleteTodo handles DELETE /todos/:id. The server does a plain hard delete (AD-5 — the
+// pending/undo window lives entirely on the client, so by the time this fires the client has
+// already committed to the delete). Read the id from the path, delegate to the service, and map
+// the result: success → 204 empty (no body); a NotFoundError (unknown/already-gone id) → 404
+// not_found (which the client treats as success, RD-5); anything else → 500 internal_error.
+func deleteTodo(svc TodoService) gin.HandlerFunc <span class="cov8" title="1">{
+        return func(c *gin.Context) </span><span class="cov8" title="1">{
+                err := svc.DeleteTodo(c.Request.Context(), c.Param("id"))
+                if err != nil </span><span class="cov8" title="1">{
+                        var nfe model.NotFoundError
+                        if errors.As(err, &amp;nfe) </span><span class="cov8" title="1">{
+                                c.JSON(http.StatusNotFound,
+                                        model.NewAPIError(model.CodeNotFound, nfe.Error()))
+                                return
+                        }</span>
+                        <span class="cov8" title="1">slog.Error("delete todo failed", "error", err)
+                        c.JSON(http.StatusInternalServerError,
+                                model.NewAPIError(model.CodeInternalError, "failed to delete todo"))
+                        return</span>
+                }
+
+                <span class="cov8" title="1">c.Status(http.StatusNoContent)</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package handler
+
+import (
+        "time"
+
+        "github.com/todo-app/api/model"
+)
+
+// The wire (serialization) layer. It maps the flat domain model.Todo to the AD-6 wire
+// shape: camelCase fields, timestamps NESTED under metadata, formatted RFC3339 UTC with
+// a trailing Z at second precision (AD-7). Keeping this here — not on the domain model —
+// is what lets model.Todo stay a plain domain type. The shape mirrors shared/todo.ts.
+
+type todoResponse struct {
+        ID          string       `json:"id"`
+        Title       string       `json:"title"`
+        Description string       `json:"description"`
+        Status      string       `json:"status"`
+        Metadata    wireMetadata `json:"metadata"`
+}
+
+type wireMetadata struct {
+        CreatedAt string `json:"createdAt"`
+        UpdatedAt string `json:"updatedAt"`
+}
+
+// formatTS renders a timestamp as RFC3339 UTC, second precision (e.g. 2026-07-17T14:03:11Z).
+func formatTS(t time.Time) string <span class="cov8" title="1">{
+        return t.UTC().Format(time.RFC3339)
+}</span>
+
+func toTodoResponse(t model.Todo) todoResponse <span class="cov8" title="1">{
+        return todoResponse{
+                ID:          t.ID,
+                Title:       t.Title,
+                Description: t.Description,
+                Status:      t.Status,
+                Metadata: wireMetadata{
+                        CreatedAt: formatTS(t.CreatedAt),
+                        UpdatedAt: formatTS(t.UpdatedAt),
+                },
+        }
+}</span>
+
+// toTodoResponses maps a slice of domain todos to wire responses. It always returns a
+// non-nil slice so an empty list serializes as [] (AD-6), never null.
+func toTodoResponses(todos []model.Todo) []todoResponse <span class="cov8" title="1">{
+        out := make([]todoResponse, 0, len(todos))
+        for _, t := range todos </span><span class="cov8" title="1">{
+                out = append(out, toTodoResponse(t))
+        }</span>
+        <span class="cov8" title="1">return out</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">// Command api is the todo REST service: it migrates the schema on boot (AD-11), then
+// serves the layered handler/service/repository stack over Gin. It is internal-only —
+// only web is exposed to the host (AD-12).
+package main
+
+import (
+        "context"
+        "log/slog"
+        "os"
+
+        "github.com/todo-app/api/db"
+        "github.com/todo-app/api/handler"
+        "github.com/todo-app/api/migrations"
+        "github.com/todo-app/api/repository"
+        "github.com/todo-app/api/service"
+)
+
+func main() <span class="cov0" title="0">{
+        logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+        slog.SetDefault(logger)
+
+        databaseURL := env("DATABASE_URL", "postgres://todo:todo@db:5432/todo?sslmode=disable")
+        port := env("PORT", "8080")
+
+        ctx := context.Background()
+
+        // AD-11: migrations run automatically, BEFORE serving.
+        slog.Info("applying migrations")
+        if err := db.Migrate(databaseURL, migrations.FS); err != nil </span><span class="cov0" title="0">{
+                slog.Error("migration failed", "error", err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">slog.Info("migrations applied")
+
+        pool, err := db.Connect(ctx, databaseURL)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.Error("db connect failed", "error", err)
+                os.Exit(1)
+        }</span>
+        <span class="cov0" title="0">defer pool.Close()
+
+        repo := repository.NewPostgres(pool)
+        svc := service.New(repo)
+        router := handler.NewRouter(svc)
+
+        // No-op in production builds; under the `testseed` tag it registers a test-only reset
+        // endpoint for integration/E2E cleanup (never in the shipped image, TC1).
+        registerTestRoutes(router, pool)
+
+        slog.Info("api serving", "port", port)
+        if err := router.Run(":" + port); err != nil </span><span class="cov0" title="0">{
+                slog.Error("server exited", "error", err)
+                os.Exit(1)
+        }</span>
+}
+
+// env returns the value of key, or fallback when unset/empty (12-factor config, AD-12).
+func env(key, fallback string) string <span class="cov0" title="0">{
+        if v := os.Getenv(key); v != "" </span><span class="cov0" title="0">{
+                return v
+        }</span>
+        <span class="cov0" title="0">return fallback</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">// Package model holds the api's domain types. It is the innermost layer — every
+// other layer (handler, service, repository) may depend on it, and it depends on
+// nothing internal, preserving the one-way dependency spine (AD-1).
+package model
+
+import "time"
+
+// Todo is the domain representation of a todo. It is intentionally FLAT and free of
+// wire concerns: timestamps are native time.Time, not pre-formatted strings, and there
+// is no `metadata` nesting or json tags here. The AD-6 wire shape (camelCase, metadata
+// nesting, RFC3339-Z formatting) is produced by the serializer at the HTTP boundary
+// (see api/handler/wire.go), keeping the domain model decoupled from the wire.
+type Todo struct {
+        ID          string
+        Title       string
+        Description string
+        Status      string
+        CreatedAt   time.Time
+        UpdatedAt   time.Time
+}
+
+// Allowed todo statuses (AD-8). Kept in sync with the DB CHECK constraint and, from
+// Story 1.2, with service-layer validation.
+const (
+        StatusActive    = "active"
+        StatusCompleted = "completed"
+)
+
+// ValidationError is a business-rule violation (AD-10) raised by the service layer and
+// mapped by the handler to a 400 validation_error envelope (AD-9). Keeping the type in
+// the innermost model package lets the handler detect it via errors.As WITHOUT importing
+// the concrete service package — preserving the consumer-owned service interface (AD-1).
+type ValidationError struct {
+        Message string
+}
+
+func (e ValidationError) Error() string <span class="cov0" title="0">{ return e.Message }</span>
+
+// NotFoundError is raised when an operation targets a todo id that does not exist. The
+// service returns it (e.g. on a repository pgx.ErrNoRows) and the handler maps it via
+// errors.As to a 404 not_found envelope (AD-9). Mirrors ValidationError so the handler
+// detects it WITHOUT importing the concrete service/repository packages (AD-1). This is
+// the first producer of CodeNotFound.
+type NotFoundError struct {
+        Message string
+}
+
+func (e NotFoundError) Error() string <span class="cov0" title="0">{ return e.Message }</span>
+
+// APIError is the uniform non-2xx envelope (AD-9): { "error": { "code", "message" } }.
+type APIError struct {
+        Error APIErrorBody `json:"error"`
+}
+
+// APIErrorBody is the inner payload of APIError.
+type APIErrorBody struct {
+        Code    string `json:"code"`
+        Message string `json:"message"`
+}
+
+// Error code vocabulary (AD-9) — a fixed set the client can branch on.
+const (
+        CodeValidationError = "validation_error"
+        CodeNotFound        = "not_found"
+        CodeInternalError   = "internal_error"
+)
+
+// NewAPIError builds an APIError with the given code and message.
+func NewAPIError(code, message string) APIError <span class="cov0" title="0">{
+        return APIError{Error: APIErrorBody{Code: code, Message: message}}
+}</span>
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">// Package repository is the persistence seam (AD-2). Every persistence operation is
+// a method on the Repository interface; the Postgres implementation is the only place
+// SQL lives (AD-1). The interface is kept clean today — NO speculative user_id/scope
+// parameter — so multi-user can later be added by threading an owner scope through
+// this one interface plus a `WHERE user_id = $1`, contained to repository + service.
+package repository
+
+import (
+        "context"
+        "errors"
+        "fmt"
+        "strings"
+
+        "github.com/jackc/pgx/v5"
+        "github.com/jackc/pgx/v5/pgconn"
+        "github.com/jackc/pgx/v5/pgxpool"
+
+        "github.com/todo-app/api/model"
+)
+
+// Repository is the persistence contract the service depends on.
+type Repository interface {
+        // ListTodos returns all todos newest-first (created_at DESC, id DESC). It returns
+        // a non-nil, possibly empty slice — never nil — so the handler serializes [] not null.
+        ListTodos(ctx context.Context) ([]model.Todo, error)
+        // CreateTodo inserts a new todo (title + description already validated + trimmed by the
+        // service) and returns the created row with the server-assigned id/status/timestamps
+        // (AD-7). The interface stays clean — no owner/scope param (AD-2).
+        CreateTodo(ctx context.Context, title, description string) (model.Todo, error)
+        // UpdateTodo applies a partial update (AD-6): only the non-nil fields are written, plus
+        // updated_at = now() (there is no DB trigger). All fields already validated + trimmed by
+        // the service. Returns the full updated row (RETURNING). If no fields are provided it is a
+        // no-op that returns the current row. A missing id yields model.NotFoundError. Interface
+        // stays clean — no owner/scope param (AD-2).
+        UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error)
+        // DeleteTodo hard-deletes the todo by id (AD-5 — the pending/undo lifecycle is entirely
+        // client-side; the server does a plain parameterized DELETE and never knows a delete was
+        // "pending"). A missing id yields model.NotFoundError (404, not 500). No soft-delete /
+        // deleted_at column (Never). Interface stays clean — no owner/scope param (AD-2).
+        DeleteTodo(ctx context.Context, id string) error
+        // Ping verifies the datastore is reachable (drives readiness at GET /health).
+        Ping(ctx context.Context) error
+}
+
+// Postgres is the PostgreSQL-backed Repository. All SQL is parameterized (AD-10).
+type Postgres struct {
+        pool *pgxpool.Pool
+}
+
+// NewPostgres wraps a pgx pool as a Repository.
+func NewPostgres(pool *pgxpool.Pool) *Postgres <span class="cov8" title="1">{
+        return &amp;Postgres{pool: pool}
+}</span>
+
+// ListTodos implements Repository. Timestamps are scanned as native time.Time into the
+// flat domain model; RFC3339 formatting + metadata nesting are the serializer's job. The
+// slice is initialized non-nil so an empty table serializes as [] (AD-6), never null.
+func (p *Postgres) ListTodos(ctx context.Context) ([]model.Todo, error) <span class="cov8" title="1">{
+        const q = `
+                SELECT id, title, description, status, created_at, updated_at
+                FROM todos
+                ORDER BY created_at DESC, id DESC`
+
+        rows, err := p.pool.Query(ctx, q)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("query todos: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        todos := make([]model.Todo, 0)
+        for rows.Next() </span><span class="cov8" title="1">{
+                var t model.Todo
+                if err := rows.Scan(&amp;t.ID, &amp;t.Title, &amp;t.Description, &amp;t.Status, &amp;t.CreatedAt, &amp;t.UpdatedAt); err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("scan todo: %w", err)
+                }</span>
+                <span class="cov8" title="1">todos = append(todos, t)</span>
+        }
+        <span class="cov8" title="1">if err := rows.Err(); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("iterate todos: %w", err)
+        }</span>
+        <span class="cov8" title="1">return todos, nil</span>
+}
+
+// CreateTodo implements Repository. The INSERT supplies only title + description; the DB
+// assigns id (gen_random_uuid()), status (DEFAULT 'active'), and created_at/updated_at
+// (DEFAULT now()) — AD-7. RETURNING gives back the full row so the handler can emit the
+// complete AD-6 resource in the 201 body. SQL is parameterized (AD-10).
+func (p *Postgres) CreateTodo(ctx context.Context, title, description string) (model.Todo, error) <span class="cov8" title="1">{
+        const q = `
+                INSERT INTO todos (title, description)
+                VALUES ($1, $2)
+                RETURNING id, title, description, status, created_at, updated_at`
+
+        var t model.Todo
+        err := p.pool.QueryRow(ctx, q, title, description).
+                Scan(&amp;t.ID, &amp;t.Title, &amp;t.Description, &amp;t.Status, &amp;t.CreatedAt, &amp;t.UpdatedAt)
+        if err != nil </span><span class="cov0" title="0">{
+                return model.Todo{}, fmt.Errorf("insert todo: %w", err)
+        }</span>
+        <span class="cov8" title="1">return t, nil</span>
+}
+
+// UpdateTodo implements Repository. It builds a parameterized partial UPDATE from only the
+// provided (non-nil) columns plus updated_at = now(), then RETURNING the full row so the
+// handler can emit the complete AD-6 resource in the 200 body. Column names are a static
+// whitelist (never interpolated from input); every VALUE is a bound parameter (AD-10) — no
+// string-concatenation of values. A pgx.ErrNoRows (unknown id) maps to model.NotFoundError.
+// With no fields to change it degrades to a SELECT of the current row (empty-patch no-op).
+func (p *Postgres) UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error) <span class="cov8" title="1">{
+        // Statically-whitelisted column names paired with their pointer value; only non-nil
+        // fields contribute a SET clause. Placeholders are numbered so the id lands last.
+        setClauses := make([]string, 0, 4)
+        args := make([]any, 0, 5)
+        argN := 1
+
+        if title != nil </span><span class="cov8" title="1">{
+                setClauses = append(setClauses, fmt.Sprintf("title = $%d", argN))
+                args = append(args, *title)
+                argN++
+        }</span>
+        <span class="cov8" title="1">if description != nil </span><span class="cov8" title="1">{
+                setClauses = append(setClauses, fmt.Sprintf("description = $%d", argN))
+                args = append(args, *description)
+                argN++
+        }</span>
+        <span class="cov8" title="1">if status != nil </span><span class="cov8" title="1">{
+                setClauses = append(setClauses, fmt.Sprintf("status = $%d", argN))
+                args = append(args, *status)
+                argN++
+        }</span>
+
+        // Empty patch (all fields nil): nothing to change — return the current row unchanged so
+        // the handler still emits a 200 + full resource (AD-6), and a missing id is still a 404.
+        <span class="cov8" title="1">if len(setClauses) == 0 </span><span class="cov0" title="0">{
+                const q = `
+                        SELECT id, title, description, status, created_at, updated_at
+                        FROM todos
+                        WHERE id = $1`
+                var t model.Todo
+                err := p.pool.QueryRow(ctx, q, id).
+                        Scan(&amp;t.ID, &amp;t.Title, &amp;t.Description, &amp;t.Status, &amp;t.CreatedAt, &amp;t.UpdatedAt)
+                if err != nil </span><span class="cov0" title="0">{
+                        return model.Todo{}, todoByIDErr(err)
+                }</span>
+                <span class="cov0" title="0">return t, nil</span>
+        }
+
+        // Always bump updated_at on a real update (AD-7 — there is no DB trigger). The id is the
+        // final positional parameter for the WHERE clause.
+        <span class="cov8" title="1">setClauses = append(setClauses, "updated_at = now()")
+        args = append(args, id)
+
+        q := fmt.Sprintf(`
+                UPDATE todos
+                SET %s
+                WHERE id = $%d
+                RETURNING id, title, description, status, created_at, updated_at`,
+                strings.Join(setClauses, ", "), argN)
+
+        var t model.Todo
+        err := p.pool.QueryRow(ctx, q, args...).
+                Scan(&amp;t.ID, &amp;t.Title, &amp;t.Description, &amp;t.Status, &amp;t.CreatedAt, &amp;t.UpdatedAt)
+        if err != nil </span><span class="cov8" title="1">{
+                return model.Todo{}, todoByIDErr(err)
+        }</span>
+        <span class="cov8" title="1">return t, nil</span>
+}
+
+// DeleteTodo implements Repository. It hard-deletes the row via a parameterized DELETE (AD-10) —
+// no soft-delete, no schema change (AD-5 keeps the pending/undo lifecycle entirely client-side).
+// A malformed (non-uuid) id surfaces as a 22P02 from Postgres, mapped by todoByIDErr to
+// NotFoundError. A well-formed but absent id affects zero rows → NotFoundError (404, not 500).
+func (p *Postgres) DeleteTodo(ctx context.Context, id string) error <span class="cov8" title="1">{
+        tag, err := p.pool.Exec(ctx, "DELETE FROM todos WHERE id = $1", id)
+        if err != nil </span><span class="cov8" title="1">{
+                return todoByIDErr(err)
+        }</span>
+        <span class="cov8" title="1">if tag.RowsAffected() == 0 </span><span class="cov8" title="1">{
+                return model.NotFoundError{Message: "todo not found"}
+        }</span>
+        <span class="cov8" title="1">return nil</span>
+}
+
+// todoByIDErr translates an error on a by-id todo operation into a domain error:
+// ErrNoRows (absent id) and Postgres 22P02 (a malformed, non-uuid id — which can reference no
+// resource) both become NotFoundError (404, not a 500, per AD-9); anything else is wrapped as
+// an internal error.
+func todoByIDErr(err error) error <span class="cov8" title="1">{
+        if errors.Is(err, pgx.ErrNoRows) </span><span class="cov8" title="1">{
+                return model.NotFoundError{Message: "todo not found"}
+        }</span>
+        <span class="cov8" title="1">var pgErr *pgconn.PgError
+        if errors.As(err, &amp;pgErr) &amp;&amp; pgErr.Code == "22P02" </span><span class="cov8" title="1">{
+                return model.NotFoundError{Message: "todo not found"}
+        }</span>
+        <span class="cov0" title="0">return fmt.Errorf("todo by id: %w", err)</span>
+}
+
+// Ping implements Repository.
+func (p *Postgres) Ping(ctx context.Context) error <span class="cov0" title="0">{
+        return p.pool.Ping(ctx)
+}</span>
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">// Package service holds the business rules (AD-1). It depends only on the repository
+// interface — never on Gin or HTTP concerns. In Story 1.1 the surface is small
+// (list + health); validation and status-transition rules land in later stories.
+package service
+
+import (
+        "context"
+        "fmt"
+        "strings"
+        "unicode/utf8"
+
+        "github.com/todo-app/api/model"
+        "github.com/todo-app/api/repository"
+)
+
+// Validation caps (AD-10). Counted in Unicode code points (runes) AFTER trimming
+// whitespace, so the client mirror ([...s.trim()].length) stays exact.
+const (
+        MaxTitleLen       = 200
+        MaxDescriptionLen = 2000
+)
+
+// Service is the business-logic entry point for todos.
+type Service struct {
+        repo repository.Repository
+}
+
+// New constructs a Service over any Repository implementation (real or test stub).
+func New(repo repository.Repository) *Service <span class="cov8" title="1">{
+        return &amp;Service{repo: repo}
+}</span>
+
+// ListTodos returns all todos, newest-first, as a non-nil slice.
+func (s *Service) ListTodos(ctx context.Context) ([]model.Todo, error) <span class="cov0" title="0">{
+        return s.repo.ListTodos(ctx)
+}</span>
+
+// CreateTodo validates and persists a new todo (AD-10, server-authoritative). Both fields
+// are trimmed FIRST, then the caps are applied: title is required and ≤200 code points;
+// description is optional and ≤2000. The trimmed values are what get persisted, so the
+// optimistically rendered client text equals the stored text. The server assigns
+// id/status/timestamps (AD-7) — a client-supplied status is never accepted here.
+func (s *Service) CreateTodo(ctx context.Context, title, description string) (model.Todo, error) <span class="cov8" title="1">{
+        title, err := validateTitle(title)
+        if err != nil </span><span class="cov8" title="1">{
+                return model.Todo{}, err
+        }</span>
+        <span class="cov8" title="1">description, err = validateDescription(description)
+        if err != nil </span><span class="cov8" title="1">{
+                return model.Todo{}, err
+        }</span>
+
+        <span class="cov8" title="1">return s.repo.CreateTodo(ctx, title, description)</span>
+}
+
+// UpdateTodo validates and applies a partial update (AD-6, AD-10). Each provided (non-nil)
+// field is validated independently — status against the AD-8 allow-list ({active,completed},
+// the second sync point besides the DB CHECK), title/description via the SAME trim+rune-cap
+// helpers CreateTodo uses (no duplication). An invalid field returns a ValidationError and
+// never reaches the repository. The trimmed value replaces the caller's pointer so the
+// persisted text equals the optimistically rendered text. A missing id surfaces from the
+// repository as model.NotFoundError, propagated unchanged.
+func (s *Service) UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error) <span class="cov8" title="1">{
+        if title != nil </span><span class="cov8" title="1">{
+                validated, err := validateTitle(*title)
+                if err != nil </span><span class="cov8" title="1">{
+                        return model.Todo{}, err
+                }</span>
+                <span class="cov8" title="1">title = &amp;validated</span>
+        }
+        <span class="cov8" title="1">if description != nil </span><span class="cov8" title="1">{
+                validated, err := validateDescription(*description)
+                if err != nil </span><span class="cov8" title="1">{
+                        return model.Todo{}, err
+                }</span>
+                <span class="cov8" title="1">description = &amp;validated</span>
+        }
+        <span class="cov8" title="1">if status != nil </span><span class="cov8" title="1">{
+                if *status != model.StatusActive &amp;&amp; *status != model.StatusCompleted </span><span class="cov8" title="1">{
+                        return model.Todo{}, model.ValidationError{
+                                Message: fmt.Sprintf("status must be one of %q or %q", model.StatusActive, model.StatusCompleted),
+                        }
+                }</span>
+        }
+
+        <span class="cov8" title="1">return s.repo.UpdateTodo(ctx, id, title, description, status)</span>
+}
+
+// DeleteTodo hard-deletes a todo by id (AD-5). There is no business rule to apply — the
+// pending/undo lifecycle lives entirely on the client and the server just does the delete — so
+// this is a thin passthrough. A missing id surfaces from the repository as model.NotFoundError,
+// propagated unchanged for the handler to map to 404.
+func (s *Service) DeleteTodo(ctx context.Context, id string) error <span class="cov8" title="1">{
+        return s.repo.DeleteTodo(ctx, id)
+}</span>
+
+// validateTitle trims then applies the required + ≤200-code-point rule (AD-10). The trimmed
+// value is returned so callers persist exactly what was validated. Shared by Create + Update.
+func validateTitle(title string) (string, error) <span class="cov8" title="1">{
+        title = strings.TrimSpace(title)
+        if title == "" </span><span class="cov8" title="1">{
+                return "", model.ValidationError{Message: "title is required"}
+        }</span>
+        <span class="cov8" title="1">if utf8.RuneCountInString(title) &gt; MaxTitleLen </span><span class="cov8" title="1">{
+                return "", model.ValidationError{
+                        Message: fmt.Sprintf("title must be at most %d characters", MaxTitleLen),
+                }
+        }</span>
+        <span class="cov8" title="1">return title, nil</span>
+}
+
+// validateDescription trims then applies the optional ≤2000-code-point rule (AD-10). Blank is
+// valid ("" persisted, never null). The trimmed value is returned. Shared by Create + Update.
+func validateDescription(description string) (string, error) <span class="cov8" title="1">{
+        description = strings.TrimSpace(description)
+        if utf8.RuneCountInString(description) &gt; MaxDescriptionLen </span><span class="cov8" title="1">{
+                return "", model.ValidationError{
+                        Message: fmt.Sprintf("description must be at most %d characters", MaxDescriptionLen),
+                }
+        }</span>
+        <span class="cov8" title="1">return description, nil</span>
+}
+
+// Health reports whether the datastore is reachable (readiness for GET /health).
+func (s *Service) Health(ctx context.Context) error <span class="cov0" title="0">{
+        return s.repo.Ping(ctx)
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">//go:build testseed
+
+// Package testhelpers provides a test-only seed/reset seam through the datastore
+// [TC1]. It is guarded by the `testseed` build tag so it is compiled ONLY into test
+// builds (`go test -tags testseed` / a test-profile binary) and is NEVER reachable in
+// the production api image, which is built without the tag. All SQL here is
+// parameterized (AD-10) and runs against the same Postgres the repository uses, so
+// integration/E2E can set list state and reset deterministically between runs.
+package testhelpers
+
+import (
+        "context"
+        "fmt"
+
+        "github.com/jackc/pgx/v5/pgxpool"
+
+        "github.com/todo-app/api/model"
+)
+
+// SeedTodo is a minimal spec for inserting a known row in tests. Zero-value Status
+// defaults to active. Timestamps are left to the DB unless explicitly needed later.
+type SeedTodo struct {
+        Title       string
+        Description string
+        Status      string
+}
+
+// ResetTodos truncates the todos table so each test starts from a clean, empty state.
+func ResetTodos(ctx context.Context, pool *pgxpool.Pool) error <span class="cov0" title="0">{
+        if _, err := pool.Exec(ctx, `TRUNCATE TABLE todos`); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("reset todos: %w", err)
+        }</span>
+        <span class="cov0" title="0">return nil</span>
+}
+
+// SeedTodos inserts the given rows (parameterized) and returns the generated ids in
+// insertion order. Server defaults still apply (id, timestamps, status default).
+func SeedTodos(ctx context.Context, pool *pgxpool.Pool, todos ...SeedTodo) ([]string, error) <span class="cov0" title="0">{
+        ids := make([]string, 0, len(todos))
+        for _, t := range todos </span><span class="cov0" title="0">{
+                status := t.Status
+                if status == "" </span><span class="cov0" title="0">{
+                        status = model.StatusActive
+                }</span>
+                <span class="cov0" title="0">var id string
+                err := pool.QueryRow(ctx,
+                        `INSERT INTO todos (title, description, status)
+                         VALUES ($1, $2, $3)
+                         RETURNING id`,
+                        t.Title, t.Description, status,
+                ).Scan(&amp;id)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("seed todo %q: %w", t.Title, err)
+                }</span>
+                <span class="cov0" title="0">ids = append(ids, id)</span>
+        }
+        <span class="cov0" title="0">return ids, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">//go:build testseed
+
+package main
+
+import (
+        "net/http"
+
+        "github.com/gin-gonic/gin"
+        "github.com/jackc/pgx/v5/pgxpool"
+
+        "github.com/todo-app/api/model"
+        "github.com/todo-app/api/testhelpers"
+)
+
+// registerTestRoutes wires a test-only reset endpoint, compiled ONLY under the `testseed`
+// build tag (never in the production image). It lets Playwright/integration suites reset
+// list state deterministically between runs WITHOUT a real DELETE endpoint (which is
+// Story 2.3, Epic 2). It reuses the same parameterized testhelpers seam as the Go tests,
+// so it is never reachable in a prod build [TC1].
+func registerTestRoutes(r *gin.Engine, pool *pgxpool.Pool) <span class="cov0" title="0">{
+        r.POST("/internal/test/reset", func(c *gin.Context) </span><span class="cov0" title="0">{
+                if err := testhelpers.ResetTodos(c.Request.Context(), pool); err != nil </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusInternalServerError,
+                                model.NewAPIError(model.CodeInternalError, "reset failed"))
+                        return
+                }</span>
+                <span class="cov0" title="0">c.Status(http.StatusNoContent)</span>
+        })
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
