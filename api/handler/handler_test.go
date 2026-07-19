@@ -27,9 +27,19 @@ type stubService struct {
 	createErr error
 	// lastCreate captures the arguments the handler forwarded (to assert binding).
 	lastCreate *createArgs
+	// updated is returned from UpdateTodo on success; updateErr forces a failure path.
+	updated   model.Todo
+	updateErr error
+	// lastUpdate captures the arguments the handler forwarded (to assert pointer binding).
+	lastUpdate *updateArgs
 }
 
 type createArgs struct{ title, description string }
+
+type updateArgs struct {
+	id                       string
+	title, description, stat *string
+}
 
 func (s stubService) ListTodos(_ context.Context) ([]model.Todo, error) { return s.todos, s.listErr }
 func (s stubService) Health(_ context.Context) error                    { return s.healthErr }
@@ -40,6 +50,14 @@ func (s *stubService) CreateTodo(_ context.Context, title, description string) (
 		return model.Todo{}, s.createErr
 	}
 	return s.created, nil
+}
+
+func (s *stubService) UpdateTodo(_ context.Context, id string, title, description, status *string) (model.Todo, error) {
+	s.lastUpdate = &updateArgs{id: id, title: title, description: description, stat: status}
+	if s.updateErr != nil {
+		return model.Todo{}, s.updateErr
+	}
+	return s.updated, nil
 }
 
 func doGET(t *testing.T, svc TodoService, path string) *httptest.ResponseRecorder {
@@ -54,6 +72,15 @@ func doPOST(t *testing.T, svc TodoService, path, body string) *httptest.Response
 	t.Helper()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	NewRouter(svc).ServeHTTP(rec, req)
+	return rec
+}
+
+func doPATCH(t *testing.T, svc TodoService, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPatch, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	NewRouter(svc).ServeHTTP(rec, req)
 	return rec
@@ -241,6 +268,92 @@ func TestCreateTodo_MalformedBodyIs400(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+// 2.1 AC: a valid status PATCH returns 200 + the full AD-6 resource the service handed back
+// (status updated, updatedAt bumped, camelCase + metadata nesting). The handler must decode
+// the body as pointers and forward only the provided field (status) — title/description nil.
+func TestUpdateTodo_ValidStatusReturns200AD6Shape(t *testing.T) {
+	ts := time.Date(2026, 7, 17, 14, 3, 11, 0, time.UTC)
+	bumped := time.Date(2026, 7, 17, 15, 0, 0, 0, time.UTC)
+	svc := &stubService{updated: model.Todo{
+		ID:          "33333333-3333-4333-8333-333333333333",
+		Title:       "Email Sam the Q3 numbers",
+		Description: "",
+		Status:      model.StatusCompleted,
+		CreatedAt:   ts,
+		UpdatedAt:   bumped,
+	}}
+
+	rec := doPATCH(t, svc, "/todos/33333333-3333-4333-8333-333333333333", `{"status":"completed"}`)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	// Only status was in the body → title/description forwarded as nil (unchanged), status set.
+	if svc.lastUpdate == nil {
+		t.Fatalf("service was not called")
+	}
+	if svc.lastUpdate.id != "33333333-3333-4333-8333-333333333333" {
+		t.Fatalf("id = %q, want the path param", svc.lastUpdate.id)
+	}
+	if svc.lastUpdate.title != nil || svc.lastUpdate.description != nil {
+		t.Fatalf("absent fields must forward as nil (unchanged), got title=%v desc=%v",
+			svc.lastUpdate.title, svc.lastUpdate.description)
+	}
+	if svc.lastUpdate.stat == nil || *svc.lastUpdate.stat != model.StatusCompleted {
+		t.Fatalf("status = %v, want pointer to completed", svc.lastUpdate.stat)
+	}
+
+	var row map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &row); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if row["status"] != model.StatusCompleted {
+		t.Fatalf("status = %v, want completed", row["status"])
+	}
+	meta, ok := row["metadata"].(map[string]any)
+	if !ok || meta["updatedAt"] != "2026-07-17T15:00:00Z" {
+		t.Fatalf("metadata.updatedAt = %v, want the bumped RFC3339-Z timestamp", row["metadata"])
+	}
+}
+
+// 2.1 AC: an invalid status is rejected by the service as a ValidationError → 400 (AD-9). The
+// handler must never emit a 500 for a business-rule rejection.
+func TestUpdateTodo_InvalidStatusIs400(t *testing.T) {
+	svc := &stubService{updateErr: model.ValidationError{Message: "status must be one of active or completed"}}
+
+	rec := doPATCH(t, svc, "/todos/abc", `{"status":"archived"}`)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if apiErr.Error.Code != model.CodeValidationError {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeValidationError)
+	}
+}
+
+// 2.1 AC: an unknown id surfaces from the service as a NotFoundError → 404 not_found (AD-9),
+// the first producer of CodeNotFound.
+func TestUpdateTodo_UnknownIdIs404(t *testing.T) {
+	svc := &stubService{updateErr: model.NotFoundError{Message: "todo not found"}}
+
+	rec := doPATCH(t, svc, "/todos/does-not-exist", `{"status":"completed"}`)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if apiErr.Error.Code != model.CodeNotFound {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeNotFound)
 	}
 }
 

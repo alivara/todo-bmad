@@ -36,6 +36,17 @@ type ValidationError struct {
 
 func (e ValidationError) Error() string { return e.Message }
 
+// NotFoundError is raised when an operation targets a todo id that does not exist. The
+// service returns it (e.g. on a repository pgx.ErrNoRows) and the handler maps it via
+// errors.As to a 404 not_found envelope (AD-9). Mirrors ValidationError so the handler
+// detects it WITHOUT importing the concrete service/repository packages (AD-1). This is
+// the first producer of CodeNotFound.
+type NotFoundError struct {
+	Message string
+}
+
+func (e NotFoundError) Error() string { return e.Message }
+
 // APIError is the uniform non-2xx envelope (AD-9): { "error": { "code", "message" } }.
 type APIError struct {
 	Error APIErrorBody `json:"error"`

@@ -17,6 +17,15 @@ type stubRepo struct {
 	gotTitle    string
 	gotDesc     string
 	createCalls int
+
+	// UpdateTodo capture + control.
+	updateErr    error
+	updateCalls  int
+	gotID        string
+	gotUpTitle   *string
+	gotUpDesc    *string
+	gotUpStatus  *string
+	updateReturn model.Todo
 }
 
 func (r *stubRepo) ListTodos(context.Context) ([]model.Todo, error) { return nil, nil }
@@ -29,6 +38,17 @@ func (r *stubRepo) CreateTodo(_ context.Context, title, description string) (mod
 	}
 	return model.Todo{ID: "id", Title: title, Description: description, Status: model.StatusActive}, nil
 }
+
+func (r *stubRepo) UpdateTodo(_ context.Context, id string, title, description, status *string) (model.Todo, error) {
+	r.updateCalls++
+	r.gotID, r.gotUpTitle, r.gotUpDesc, r.gotUpStatus = id, title, description, status
+	if r.updateErr != nil {
+		return model.Todo{}, r.updateErr
+	}
+	return r.updateReturn, nil
+}
+
+func strptr(s string) *string { return &s }
 
 func isValidationErr(err error) bool {
 	var ve model.ValidationError
@@ -131,5 +151,100 @@ func TestCreateTodo_RepositoryErrorPropagates(t *testing.T) {
 	_, err := New(repo).CreateTodo(context.Background(), "hi", "")
 	if err == nil || isValidationErr(err) {
 		t.Fatalf("err = %v, want a non-validation error", err)
+	}
+}
+
+func isNotFoundErr(err error) bool {
+	var nfe model.NotFoundError
+	return errors.As(err, &nfe)
+}
+
+// 2.1 AC / AD-8: a status outside {active,completed} is rejected as a ValidationError and
+// NEVER reaches the repository (the service is the second sync point besides the DB CHECK).
+func TestUpdateTodo_InvalidStatusRejectedNeverReachesRepo(t *testing.T) {
+	for _, status := range []string{"archived", "ACTIVE", "", "done"} {
+		repo := &stubRepo{}
+		svc := New(repo)
+
+		_, err := svc.UpdateTodo(context.Background(), "id", nil, nil, strptr(status))
+
+		if !isValidationErr(err) {
+			t.Fatalf("status %q: err = %v, want ValidationError", status, err)
+		}
+		if repo.updateCalls != 0 {
+			t.Fatalf("status %q: repository called %d times, want 0", status, repo.updateCalls)
+		}
+	}
+}
+
+// 2.1 AC / AD-8: both allow-list values pass validation and reach the repo as the provided
+// status pointer, with title/description left nil (unchanged) for a status-only toggle.
+func TestUpdateTodo_AllowedStatusesReachRepo(t *testing.T) {
+	for _, status := range []string{model.StatusActive, model.StatusCompleted} {
+		repo := &stubRepo{updateReturn: model.Todo{ID: "id", Status: status}}
+		svc := New(repo)
+
+		got, err := svc.UpdateTodo(context.Background(), "id", nil, nil, strptr(status))
+		if err != nil {
+			t.Fatalf("status %q: unexpected err %v", status, err)
+		}
+		if repo.updateCalls != 1 {
+			t.Fatalf("status %q: repository called %d times, want 1", status, repo.updateCalls)
+		}
+		if repo.gotUpStatus == nil || *repo.gotUpStatus != status {
+			t.Fatalf("status %q: repo got %v, want the provided status pointer", status, repo.gotUpStatus)
+		}
+		if repo.gotUpTitle != nil || repo.gotUpDesc != nil {
+			t.Fatalf("status %q: title/description must forward as nil (unchanged)", status)
+		}
+		if got.Status != status {
+			t.Fatalf("status %q: returned status = %q", status, got.Status)
+		}
+	}
+}
+
+// 2.1 AC: a repository NotFoundError (pgx.ErrNoRows for an unknown id) propagates unchanged
+// so the handler maps it to 404 — not masked as a ValidationError or a generic 500.
+func TestUpdateTodo_NotFoundPropagates(t *testing.T) {
+	repo := &stubRepo{updateErr: model.NotFoundError{Message: "todo not found"}}
+	_, err := New(repo).UpdateTodo(context.Background(), "missing", nil, nil, strptr(model.StatusCompleted))
+	if !isNotFoundErr(err) {
+		t.Fatalf("err = %v, want NotFoundError", err)
+	}
+	if isValidationErr(err) {
+		t.Fatalf("NotFoundError must not be a ValidationError")
+	}
+}
+
+// 2.1 (contract-only path): a provided title is validated + trimmed via the SAME helper as
+// CreateTodo before reaching the repo; an over-cap title is rejected pre-repo. A whitespace
+// title is invalid (an edit may not blank the title, matching Create's required rule).
+func TestUpdateTodo_TitleValidatedAndTrimmed(t *testing.T) {
+	repo := &stubRepo{updateReturn: model.Todo{ID: "id"}}
+	if _, err := New(repo).UpdateTodo(context.Background(), "id", strptr("  hello  "), nil, nil); err != nil {
+		t.Fatalf("unexpected err %v", err)
+	}
+	if repo.gotUpTitle == nil || *repo.gotUpTitle != "hello" {
+		t.Fatalf("repo title = %v, want trimmed \"hello\"", repo.gotUpTitle)
+	}
+
+	repo2 := &stubRepo{}
+	if _, err := New(repo2).UpdateTodo(context.Background(), "id", strptr(strings.Repeat("a", 201)), nil, nil); !isValidationErr(err) {
+		t.Fatalf("201-char title: err = %v, want ValidationError", err)
+	}
+	if repo2.updateCalls != 0 {
+		t.Fatalf("repository called on invalid title")
+	}
+}
+
+// 2.1: an empty patch (all fields nil) is a valid no-op — it passes straight through to the
+// repository (which returns the current row) with no validation error.
+func TestUpdateTodo_EmptyPatchPassesThrough(t *testing.T) {
+	repo := &stubRepo{updateReturn: model.Todo{ID: "id", Status: model.StatusActive}}
+	if _, err := New(repo).UpdateTodo(context.Background(), "id", nil, nil, nil); err != nil {
+		t.Fatalf("empty patch: unexpected err %v", err)
+	}
+	if repo.updateCalls != 1 {
+		t.Fatalf("repository called %d times, want 1 (no-op passes through)", repo.updateCalls)
 	}
 }
