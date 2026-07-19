@@ -19,6 +19,10 @@ type Repository interface {
 	// ListTodos returns all todos newest-first (created_at DESC, id DESC). It returns
 	// a non-nil, possibly empty slice — never nil — so the handler serializes [] not null.
 	ListTodos(ctx context.Context) ([]model.Todo, error)
+	// CreateTodo inserts a new todo (title + description already validated + trimmed by the
+	// service) and returns the created row with the server-assigned id/status/timestamps
+	// (AD-7). The interface stays clean — no owner/scope param (AD-2).
+	CreateTodo(ctx context.Context, title, description string) (model.Todo, error)
 	// Ping verifies the datastore is reachable (drives readiness at GET /health).
 	Ping(ctx context.Context) error
 }
@@ -60,6 +64,25 @@ func (p *Postgres) ListTodos(ctx context.Context) ([]model.Todo, error) {
 		return nil, fmt.Errorf("iterate todos: %w", err)
 	}
 	return todos, nil
+}
+
+// CreateTodo implements Repository. The INSERT supplies only title + description; the DB
+// assigns id (gen_random_uuid()), status (DEFAULT 'active'), and created_at/updated_at
+// (DEFAULT now()) — AD-7. RETURNING gives back the full row so the handler can emit the
+// complete AD-6 resource in the 201 body. SQL is parameterized (AD-10).
+func (p *Postgres) CreateTodo(ctx context.Context, title, description string) (model.Todo, error) {
+	const q = `
+		INSERT INTO todos (title, description)
+		VALUES ($1, $2)
+		RETURNING id, title, description, status, created_at, updated_at`
+
+	var t model.Todo
+	err := p.pool.QueryRow(ctx, q, title, description).
+		Scan(&t.ID, &t.Title, &t.Description, &t.Status, &t.CreatedAt, &t.UpdatedAt)
+	if err != nil {
+		return model.Todo{}, fmt.Errorf("insert todo: %w", err)
+	}
+	return t, nil
 }
 
 // Ping implements Repository.

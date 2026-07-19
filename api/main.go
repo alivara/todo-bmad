@@ -43,6 +43,10 @@ func main() {
 	svc := service.New(repo)
 	router := handler.NewRouter(svc)
 
+	// No-op in production builds; under the `testseed` tag it registers a test-only reset
+	// endpoint for integration/E2E cleanup (never in the shipped image, TC1).
+	registerTestRoutes(router, pool)
+
 	slog.Info("api serving", "port", port)
 	if err := router.Run(":" + port); err != nil {
 		slog.Error("server exited", "error", err)

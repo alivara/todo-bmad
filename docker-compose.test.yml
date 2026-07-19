@@ -1,0 +1,15 @@
+# Test-profile override — used ONLY by the test suites (Playwright / Go integration).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
+#
+# It rebuilds `api` with the `testseed` build tag so the test-only reset endpoint
+# (POST /internal/test/reset) is compiled in. That endpoint lets the E2E/integration
+# fixtures reset list state between runs without a real DELETE endpoint (Story 2.3).
+# The production `docker-compose.yml` never sets this tag, so the shipped image stays
+# clean and the reset seam is never prod-reachable [TC1].
+services:
+  api:
+    build:
+      context: ./api
+      args:
+        GO_BUILD_TAGS: testseed

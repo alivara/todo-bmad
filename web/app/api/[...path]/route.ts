@@ -71,7 +71,14 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     const contentType = upstream.headers.get('content-type');
     if (contentType) respHeaders.set('content-type', contentType);
 
-    return new Response(respBody, {
+    // Null-body statuses (204 No Content, 304 Not Modified, 1xx) MUST NOT carry a body —
+    // the Response constructor throws if given one, which would surface as a bogus 502.
+    // A commit-DELETE (Story 2.3) and the test reset both return 204, so forward verbatim
+    // (AD-3) by dropping the body for these statuses.
+    const isNullBodyStatus =
+      upstream.status === 204 || upstream.status === 304 || (upstream.status >= 100 && upstream.status < 200);
+
+    return new Response(isNullBodyStatus ? null : respBody, {
       status: upstream.status,
       statusText: upstream.statusText,
       headers: respHeaders,

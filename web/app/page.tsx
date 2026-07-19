@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { fetchTodos, todosQueryKey } from '@/lib/todos';
+import { AddInput } from './components/AddInput';
 import { EmptyState } from './components/EmptyState';
 import { Wordmark } from './components/Wordmark';
 
@@ -17,6 +18,9 @@ export default function HomePage() {
       <header style={headerStyle}>
         <Wordmark />
       </header>
+
+      {/* The add-input is pinned above the list at every state (UX-DR5/DR15). */}
+      <AddInput />
 
       <main style={mainStyle}>{renderBody()}</main>
     </div>

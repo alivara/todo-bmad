@@ -5,3 +5,6 @@ next-env.d.ts
 package-lock.json
 # tsconfig.json is managed/rewritten by `next build`; leave its formatting to Next.
 tsconfig.json
+
+test-results/
+playwright-report/
