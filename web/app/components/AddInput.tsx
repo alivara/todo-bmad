@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useCreateTodo } from '@/lib/useCreateTodo';
 import { is4xx, inline4xxText } from '@/lib/apiError';
-import { MAX_TITLE, codePoints } from '@/lib/caps';
+import { MAX_TITLE, MAX_DESCRIPTION, codePoints } from '@/lib/caps';
 import { CharCounter } from '@/app/components/CharCounter';
+
+// Verbatim placeholder, shared with the edit-in-place description editor (TodoRow).
+const DESCRIPTION_PLACEHOLDER = 'Add a description (optional)';
 
 /**
  * The pinned, always-focused add-input (UX-DR5). Submits on Enter or the Add button
@@ -13,6 +16,7 @@ import { CharCounter } from '@/app/components/CharCounter';
  */
 export function AddInput() {
   const [value, setValue] = useState('');
+  const [description, setDescription] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   // Reentrancy latch for the double-add guard (AC5). A ref (not state) so two Enter
   // key events firing in the same tick both observe it synchronously — a stale-closure
@@ -26,14 +30,16 @@ export function AddInput() {
   }, []);
 
   const overCap = codePoints(value.trim()) > MAX_TITLE;
+  const descOverCap = codePoints(description.trim()) > MAX_DESCRIPTION;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const title = value.trim();
+    const desc = description.trim();
 
-    // Empty/whitespace → reject inline, send nothing, keep focus (AC3). Over-cap → block
-    // submit until back within cap; keystrokes are never dropped (RD-3).
-    if (title === '' || codePoints(title) > MAX_TITLE) {
+    // Empty/whitespace title → reject inline, send nothing, keep focus (AC3). Over-cap on EITHER
+    // field → block submit until back within cap; keystrokes are never dropped (RD-3).
+    if (title === '' || codePoints(title) > MAX_TITLE || codePoints(desc) > MAX_DESCRIPTION) {
       inputRef.current?.focus();
       return;
     }
@@ -42,9 +48,12 @@ export function AddInput() {
     if (submittedRef.current) return;
     submittedRef.current = true;
 
-    // Clear synchronously so the field is empty for rapid consecutive capture (AC1).
+    // Clear both fields synchronously so they're empty for rapid consecutive capture (AC1).
     setValue('');
-    create.mutate({ title });
+    setDescription('');
+    // Omit description from the body when blank/whitespace — keeps CreateTodoRequest.description?
+    // optional and the ""-empty semantics (the optimistic hook fills description: '' itself).
+    create.mutate({ title, ...(desc ? { description: desc } : {}) });
     inputRef.current?.focus();
   }
 
@@ -74,6 +83,25 @@ export function AddInput() {
           counter itself so at rest NOTHING renders (no empty row-gap gutter). Counts the raw
           value; the submit guard above still counts the trimmed value. */}
       <CharCounter value={value} max={MAX_TITLE} style={counterRowStyle} />
+      {/* Optional description — a full-width row below the title/button pair on the wrapping flex
+          form. Mirrors the edit-in-place editor's textarea (TodoRow): rows=2, verbatim placeholder,
+          aria-invalid when over-cap. A <textarea> does NOT submit on Enter (newline), so no keydown
+          handler is added here — only the title input / Add button submit. */}
+      <textarea
+        value={description}
+        onChange={(e) => {
+          setDescription(e.target.value);
+          submittedRef.current = false; // any keystroke re-arms the double-add guard
+          // Clear a stale add-error the moment the user edits either field (AC6).
+          if (create.isError) create.reset();
+        }}
+        rows={2}
+        placeholder={DESCRIPTION_PLACEHOLDER}
+        aria-label="Description"
+        aria-invalid={descOverCap || undefined}
+        style={descriptionStyle}
+      />
+      <CharCounter value={description} max={MAX_DESCRIPTION} style={counterRowStyle} />
       {create.isError &&
         (is4xx(create.error) ? (
           // 4xx = the user's input (a client/server validation mirror drift, AD-10). Inline the
@@ -120,6 +148,25 @@ const inputStyle: CSSProperties = {
   fontSize: 16,
   color: 'var(--ink-primary)',
   outline: 'none',
+};
+
+// The optional description textarea: a full-width row (flexBasis:100%) that shares the add-input
+// field idiom (accent border + accent-soft ring on the raised surface) with the meta of the
+// edit-in-place description editor (14px / 1.45, vertical resize). No new tokens.
+const descriptionStyle: CSSProperties = {
+  flexBasis: '100%',
+  boxSizing: 'border-box',
+  background: 'var(--surface-raised)',
+  border: '1.5px solid var(--accent)',
+  borderRadius: 'var(--radius-sm)',
+  boxShadow: '0 0 0 3px var(--accent-soft)',
+  padding: '12px 14px',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 14,
+  lineHeight: 1.45,
+  color: 'var(--ink-primary)',
+  outline: 'none',
+  resize: 'vertical',
 };
 
 const buttonStyle: CSSProperties = {

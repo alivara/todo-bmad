@@ -79,6 +79,40 @@ test.describe('@e2e @p0 create + view core loop', () => {
     await expect(page.getByRole('listitem').first()).toContainText('Book dentist');
   });
 
+  test('create-desc-E2E add a task with a description -> POST carries description, row renders it, survives reload', async ({
+    page,
+  }) => {
+    await page.goto('/');
+
+    const input = page.getByPlaceholder('Add a task…');
+    const description = page.getByPlaceholder('Add a description (optional)');
+    await input.fill('Email Sam the Q3 numbers');
+    await description.fill('Attach the latest deck');
+
+    // Network-first: observe the POST carrying both title and the trimmed description.
+    const [postReq] = await Promise.all([
+      page.waitForRequest((req) => req.url().includes('/api/todos') && req.method() === 'POST'),
+      input.press('Enter'),
+    ]);
+    expect(JSON.parse(postReq.postData() ?? '{}')).toEqual({
+      title: 'Email Sam the Q3 numbers',
+      description: 'Attach the latest deck',
+    });
+
+    // Optimistic row shows both title and description; both fields clear.
+    const firstRow = page.getByRole('listitem').first();
+    await expect(firstRow).toContainText('Email Sam the Q3 numbers');
+    await expect(firstRow).toContainText('Attach the latest deck');
+    await expect(input).toHaveValue('');
+    await expect(description).toHaveValue('');
+
+    // Persisted: the description survives a reload (FR17 durability).
+    await page.reload();
+    const reloadedRow = page.getByRole('listitem').first();
+    await expect(reloadedRow).toContainText('Email Sam the Q3 numbers');
+    await expect(reloadedRow).toContainText('Attach the latest deck');
+  });
+
   test('1.4-INT-001 GET /todos returns the fixed wire shape after a seeded create', async ({
     seedTodos,
     request,

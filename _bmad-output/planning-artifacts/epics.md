@@ -230,8 +230,10 @@ So that I can run and evaluate the app in minutes with no manual setup.
 ### Story 1.2: Create a todo (optimistic, end-to-end)
 
 As a user,
-I want to type a title and hit Enter to add a task that instantly appears at the top,
+I want to type a title (and optionally a description) and hit Enter to add a task that instantly appears at the top,
 So that I can dump tasks as fast as I think of them.
+
+> **Scope note (2026-07-19):** PRD **FR1** always required that "an optional longer description can be added **at creation** or later." The first implementation of 1.2 deferred the description-entry UI to edit-in-place (Story 2.2); the `create-todo-description` change added it to the create form, restoring FR1 conformance. See `sprint-change-proposal-2026-07-19-create-description.md`.
 
 **Acceptance Criteria:**
 
@@ -239,6 +241,12 @@ So that I can dump tasks as fast as I think of them.
 **When** I type a valid title and press Enter (or click Add)
 **Then** the todo is inserted optimistically at the top in ≤100ms with a temporary id
 **And** the input clears and keeps focus for rapid entry
+
+**Given** the add-input with an optional description field beneath the title (multiline; Enter inserts a newline and does not submit)
+**When** I fill in a description and submit
+**Then** the todo is created carrying the description (the `POST /todos` body includes `description` only when non-empty; a blank/whitespace description is omitted and persists as `""`, never null)
+**And** the description is validated at most 2000 code points after trim, mirroring the server — over-cap blocks submit, consistent with the title cap
+**And** on success both fields clear and focus returns to the title for rapid entry
 
 **Given** an optimistic add
 **When** `POST /todos` returns `201` with the full resource
