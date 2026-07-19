@@ -46,7 +46,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: '   ' } });
     fireEvent.submit(input.closest('form')!);
 
@@ -59,7 +59,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox') as HTMLInputElement;
+    const input = screen.getByRole('textbox', { name: 'Add a task' }) as HTMLInputElement;
     fireEvent.change(input, { target: { value: '  Email Sam the Q3 numbers  ' } });
     fireEvent.submit(input.closest('form')!);
 
@@ -70,11 +70,112 @@ describe('AddInput', () => {
     expect(input.value).toBe('');
   });
 
+  // Story: optional description on create. When a description is provided, it rides the POST body
+  // (trimmed), mirroring the trimmed title.
+  it('includes the trimmed description in the POST body when one is provided', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const title = screen.getByRole('textbox', { name: 'Add a task' });
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    fireEvent.change(title, { target: { value: 'Email Sam the Q3 numbers' } });
+    fireEvent.change(description, { target: { value: '  Attach the latest deck  ' } });
+    fireEvent.submit(title.closest('form')!);
+
+    await waitFor(() => expect(postCalls(fetchMock)).toHaveLength(1));
+    const [, init] = postCalls(fetchMock)[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      title: 'Email Sam the Q3 numbers',
+      description: 'Attach the latest deck',
+    });
+  });
+
+  // Omit-when-empty: a blank/whitespace description keeps CreateTodoRequest.description? optional —
+  // the body carries only { title }, never description:"" or null.
+  it('omits description from the POST body when it is blank/whitespace', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const title = screen.getByRole('textbox', { name: 'Add a task' });
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    fireEvent.change(title, { target: { value: 'Book dentist' } });
+    fireEvent.change(description, { target: { value: '   ' } }); // whitespace only
+    fireEvent.submit(title.closest('form')!);
+
+    await waitFor(() => expect(postCalls(fetchMock)).toHaveLength(1));
+    const [, init] = postCalls(fetchMock)[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ title: 'Book dentist' });
+  });
+
+  // Client mirror of the server cap (AD-10): a description over 2000 code points (after trim)
+  // blocks the submit entirely — no POST — while never dropping keystrokes.
+  it('blocks submit while the description is over the 2000 code-point cap (RD-3)', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const title = screen.getByRole('textbox', { name: 'Add a task' });
+    const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
+    fireEvent.change(title, { target: { value: 'Valid title' } }); // title is fine
+    fireEvent.change(description, { target: { value: 'a'.repeat(2001) } });
+    fireEvent.submit(title.closest('form')!);
+
+    await Promise.resolve();
+    expect(postCalls(fetchMock)).toHaveLength(0);
+    expect(description.value).toBe('a'.repeat(2001)); // keystrokes kept, not dropped
+    expect(description).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  // Story 3.3 progressive counter, reused for the description: hidden at rest, appears within 20
+  // of the 2000 cap.
+  it('shows the description char counter as it nears the 2000 cap (RD-2)', () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    fireEvent.change(description, { target: { value: 'a'.repeat(1984) } });
+    expect(screen.getByText('1984')).toBeInTheDocument();
+    expect(screen.getByText('/ 2000', { exact: false })).toBeInTheDocument();
+  });
+
+  // After a successful add, BOTH fields clear and focus returns to the title for the next capture.
+  it('clears both fields and refocuses the title after a successful add', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const title = screen.getByRole('textbox', { name: 'Add a task' }) as HTMLInputElement;
+    const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement;
+    fireEvent.change(title, { target: { value: 'Plan the offsite' } });
+    fireEvent.change(description, { target: { value: 'Book the room' } });
+    fireEvent.submit(title.closest('form')!);
+
+    await waitFor(() => expect(postCalls(fetchMock)).toHaveLength(1));
+    expect(title.value).toBe('');
+    expect(description.value).toBe('');
+    expect(title).toHaveFocus();
+  });
+
+  // AC4: Enter in the description textarea inserts a newline; it must NOT submit the form (only the
+  // title input / Add button do). Native for a <textarea>, but locked so a future onKeyDown can't
+  // silently regress it.
+  it('does not submit the form when Enter is pressed in the description textarea (AC4)', async () => {
+    const client = new QueryClient();
+    render(<AddInput />, { wrapper: wrapper(client) });
+
+    const title = screen.getByRole('textbox', { name: 'Add a task' });
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    fireEvent.change(title, { target: { value: 'Draft the agenda' } });
+    fireEvent.change(description, { target: { value: 'line one' } });
+    fireEvent.keyDown(description, { key: 'Enter', code: 'Enter' });
+
+    await Promise.resolve();
+    expect(postCalls(fetchMock)).toHaveLength(0);
+  });
+
   it('guards against a double-add: two Enters with no keystroke between → one request (AC5)', async () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     const form = input.closest('form')!;
     fireEvent.change(input, { target: { value: 'Book dentist' } });
     fireEvent.submit(form);
@@ -88,7 +189,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: 'a'.repeat(201) } });
     fireEvent.submit(input.closest('form')!);
 
@@ -101,7 +202,9 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Book dentist' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a task' }), {
+      target: { value: 'Book dentist' },
+    });
     expect(screen.queryByText('/ 200', { exact: false })).not.toBeInTheDocument();
   });
 
@@ -109,7 +212,9 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a'.repeat(184) } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Add a task' }), {
+      target: { value: 'a'.repeat(184) },
+    });
     const current = screen.getByText('184');
     expect(current).toHaveStyle({ color: 'var(--accent)', fontWeight: 700 });
     expect(screen.getByText('/ 200', { exact: false })).toBeInTheDocument();
@@ -119,7 +224,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: 'a'.repeat(201) } });
     // The counter conveys "over" via the overage number, not a red token.
     expect(screen.getByText('201')).toBeInTheDocument();
@@ -162,7 +267,7 @@ describe('AddInput', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<Harness />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: 'Boom' } });
     fireEvent.submit(input.closest('form')!);
 
@@ -178,7 +283,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     // 200 emoji = 200 code points but 400 UTF-16 units; `.length` would wrongly block this.
     fireEvent.change(input, { target: { value: '😀'.repeat(200) } });
     fireEvent.submit(input.closest('form')!);
@@ -190,7 +295,7 @@ describe('AddInput', () => {
     const client = new QueryClient();
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     // Family emoji = 5 code points (👨‍👩‍👧). 196 ASCII + 5 = 201 → over the 200 cap → blocked.
     // If it were counted as a single grapheme (197), the submit would wrongly go through.
     const family = String.fromCodePoint(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467);
@@ -258,7 +363,7 @@ describe('AddInput', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<Harness />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     const form = input.closest('form')!;
     // Two overlapping adds; the keystroke between them re-arms the double-add guard.
     fireEvent.change(input, { target: { value: 'Keep' } });
