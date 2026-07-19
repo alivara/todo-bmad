@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-17
-last_updated: 2026-07-19
+last_updated: 2026-07-20
 # Epic 4 (CI/CD & Quality Gate) added via correct-course on 2026-07-19; prioritized to run before Epic 2 resumes
 # Story 1.3 implemented + auto-reviewed via bmad-dev-auto; PR #4 merged → done on 2026-07-19
 project: todo-app
@@ -70,15 +70,17 @@ development_status:
   # Epic 2 retrospective completed 2026-07-19 → epic-2-retro-2026-07-19.md
   epic-2-retrospective: done
 
-  # Epic 3: Trustworthy, Polished Experience
-  epic-3: in-progress
+  # Epic 3: Trustworthy, Polished Experience — COMPLETE (all stories done; PRs #20/#24/#25/#26/#28 merged, CI green)
+  epic-3: done
   # story/3-1-unified-error-contract-systematized-rollback → done (PR #20 merged, CI green) on 2026-07-19
   3-1-unified-error-contract-systematized-rollback: done
   3-2-polished-loading-empty-error-states: done
   3-3-progressive-character-limit-feedback: done
   3-4-warm-dark-theme-toggle: done
-  3-5-responsive-polish-voice-accessibility-floor: review
-  epic-3-retrospective: optional
+  # story/3-5-responsive-polish-voice-accessibility-floor → done (PR #28 merged, CI green) on 2026-07-20
+  3-5-responsive-polish-voice-accessibility-floor: done
+  # Epic 3 retrospective completed 2026-07-20 → epic-3-retro-2026-07-20.md
+  epic-3-retrospective: done
 
   # Epic 4: Continuous Integration & Quality Gate  (prioritized: run next)
   # Story 4.1 implemented + auto-reviewed via bmad-dev-auto in worktree
@@ -97,13 +99,25 @@ development_status:
 action_items:
   - epic: 1
     action: "Palette AA-contrast fix: darken --ink-secondary (~#6f6656, >=4.6:1), raise completed-row --ink-muted (>=4.5:1), fix the Add-button contrast, then drop the color-contrast exclusion in web/tests/e2e/a11y.spec.ts"
-    owner: "Story 3.5 (needs designer sign-off)"
-    status: open
+    owner: "Story 3.5"
+    status: done  # SHIPPED in Story 3.5: contrast fixed both themes (--ink-secondary #6b6252, --accent #b0512f, new --accent-strong), completed-text rerouted, color-contrast now a HARD axe gate (PR #28)
   - epic: 2
     action: "R1 systematized cross-mutation optimistic-rollback wrapper (P0): unify the ad-hoc per-mutation rollbacks from 2.1/2.2/2.3 into one wrapper (visible, id-scoped, auto-clearing error; reconcile-to-server)"
     owner: "Epic 3 / Story 3.1 (unified-error-contract & systematized rollback)"
-    status: in-progress
+    status: done  # SHIPPED in Story 3.1: web/lib/optimistic.ts (shared rollbackById/swapById/gatedInvalidate/makeOnSettled) used by all 3 mutation hooks (PR #20)
   - epic: 2
     action: "Test-integrity agreement: mirror prod config in tests (no staleTime:Infinity masking) and proactively test the crux/riskiest branch of each story rather than leaving it for review"
     owner: "dev process (all stories)"
+    status: open
+  - epic: 3
+    action: "E2E-only failure-mode guardrails: axe/visual specs must scan the SETTLED state (snap transitions or reducedMotion) and use role/scoped locators, not broad text matches — the a11y-005 mid-transition contrast miss and the 3.1 strict-mode locator traps only surfaced in the integration-e2e lane"
+    owner: "test process (all E2E specs)"
+    status: open
+  - epic: 3
+    action: "Both-theme token discipline: any design-token change must pre-compute WCAG AA ratios for BOTH light and warm-dark before implementing, and the color-contrast axe gate stays hard"
+    owner: "design/dev (token changes)"
+    status: open
+  - epic: 3
+    action: "Deferred-ledger to epic-AC reconciliation at story planning: when deferred-work.md routes items to a story the epic ACs do not name (as with 3.5), surface the scope fork for an explicit decision before building"
+    owner: "story planning"
     status: open
