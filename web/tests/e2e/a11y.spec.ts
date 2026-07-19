@@ -75,6 +75,31 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     assertNoNonContrast('populated-list', violations);
   });
 
+  test('a11y-005 populated list — warm-dark theme (Story 3.4)', async ({ page, request }) => {
+    // Same populated shape as a11y-001, then stamp dark via the header toggle and re-scan. Guards
+    // that activating the dark palette adds no structural/name/role/landmark regression (contrast
+    // stays excluded for BOTH themes — 3.5 owns it).
+    await request.post('/api/todos', {
+      data: {
+        title: 'Review the Q3 report',
+        description:
+          'Cross-check the figures against last quarter and flag anything that moved more than ten percent so we can discuss it in the Monday sync.',
+      },
+    });
+    const res = await request.post('/api/todos', { data: { title: 'Book the venue' } });
+    const created = await res.json();
+    await request.patch(`/api/todos/${created.id}`, { data: { status: 'completed' } });
+    await request.post('/api/todos', { data: { title: 'Email Sam the numbers' } });
+
+    await page.goto('/');
+    await expect(page.getByRole('checkbox').first()).toBeVisible();
+    await page.getByRole('button', { name: /toggle theme/i }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+    const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
+    assertNoNonContrast('populated-dark', violations);
+  });
+
   test('a11y-002 empty state', async ({ page }) => {
     await page.goto('/');
     // Empty-state copy renders once the (empty) list resolves.

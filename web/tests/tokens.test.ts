@@ -32,4 +32,16 @@ describe('design tokens (globals.css)', () => {
       expect(css).toContain(`--${token}-dark:`);
     }
   });
+
+  // Story 3.4 dark-seam guard: the theme toggle relies on the :root[data-theme='dark'] block
+  // remapping every base token to its -dark value. This pins that the seam stays wired (a
+  // regression that unmaps a token would leave the toggle stamping dark but half the palette light).
+  it("wires the :root[data-theme='dark'] seam to remap every base token to its -dark value", () => {
+    const match = css.match(/:root\[data-theme='dark'\]\s*\{([^}]*)\}/);
+    expect(match, "missing the :root[data-theme='dark'] seam").not.toBeNull();
+    const darkBlock = match![1];
+    for (const token of LIGHT_TOKENS) {
+      expect(darkBlock).toContain(`--${token}: var(--${token}-dark)`);
+    }
+  });
 });

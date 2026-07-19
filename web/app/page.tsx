@@ -9,7 +9,7 @@ import { EmptyState } from './components/EmptyState';
 import { SkeletonList } from './components/SkeletonList';
 import { TodoRow } from './components/TodoRow';
 import { UndoToast } from './components/UndoToast';
-import { Wordmark } from './components/Wordmark';
+import { Header } from './components/Header';
 
 export default function HomePage() {
   // Pending-deleted ids are suppressed via the query `select` below (never removed from the cache),
@@ -25,9 +25,7 @@ export default function HomePage() {
 
   return (
     <div style={pageStyle}>
-      <header style={headerStyle}>
-        <Wordmark />
-      </header>
+      <Header />
 
       {/* The add-input is pinned above the list at every state (UX-DR5/DR15). */}
       <AddInput />
@@ -113,13 +111,6 @@ const pageStyle: CSSProperties = {
   margin: '0 auto',
   padding: '0 18px',
   minHeight: '100vh',
-};
-
-const headerStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: 'var(--space-5) 0',
 };
 
 const mainStyle: CSSProperties = {
