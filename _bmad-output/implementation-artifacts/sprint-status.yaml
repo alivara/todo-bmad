@@ -69,7 +69,7 @@ development_status:
   # Epic 3: Trustworthy, Polished Experience
   epic-3: in-progress
   3-1-unified-error-contract-systematized-rollback: review
-  3-2-polished-loading-empty-error-states: backlog
+  3-2-polished-loading-empty-error-states: review
   3-3-progressive-character-limit-feedback: backlog
   3-4-warm-dark-theme-toggle: backlog
   3-5-responsive-polish-voice-accessibility-floor: backlog

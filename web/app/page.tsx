@@ -6,6 +6,7 @@ import { fetchTodos, todosQueryKey } from '@/lib/todos';
 import { usePendingDelete } from '@/lib/pendingDelete';
 import { AddInput } from './components/AddInput';
 import { EmptyState } from './components/EmptyState';
+import { SkeletonList } from './components/SkeletonList';
 import { TodoRow } from './components/TodoRow';
 import { UndoToast } from './components/UndoToast';
 import { Wordmark } from './components/Wordmark';
@@ -40,22 +41,37 @@ export default function HomePage() {
   );
 
   function renderBody() {
-    // Basic loading indicator — never a blank screen (AC2, NFR2). The polished
-    // skeleton-shimmer rows are Epic 3 (Story 3.2).
+    // The polished skeleton-shimmer loading state (Story 3.2) — 4 rows matching the row anatomy
+    // plus the `Getting your tasks…` caption; never a blank screen or bare spinner (AC2, NFR2).
     if (isPending) {
-      return (
-        <p role="status" style={mutedTextStyle}>
-          Getting your tasks…
-        </p>
-      );
+      return <SkeletonList />;
     }
 
-    // Basic non-disruptive error with a working retry (re-issues the request). The
-    // polished warm error illustration + 4xx/5xx split are Epic 3 (Stories 3.1/3.2).
+    // The warm, de-escalated load-failure state (Story 3.2). A NEUTRAL glyph (border-hairline field +
+    // ink-secondary refresh arrow — no red, no alarm), the upsized headline, the locked reassuring
+    // subline, and a solid accent Try-again that re-issues the request (refetch). Keeps role="alert".
     if (isError) {
       return (
         <div role="alert" style={centeredColumnStyle}>
-          <p style={{ ...mutedTextStyle, color: 'var(--ink-primary)' }}>Couldn&apos;t load your tasks</p>
+          <div aria-hidden="true" style={errorGlyphFieldStyle}>
+            <svg
+              width="34"
+              height="34"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--ink-secondary)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 1 1-3.5-7.1" />
+              <path d="M21 4v4.5h-4.5" />
+            </svg>
+          </div>
+          <h2 style={errorHeadlineStyle}>Couldn&apos;t load your tasks</h2>
+          <p style={errorSublineStyle}>
+            Something got in the way. Your tasks are safe — let&apos;s try that again.
+          </p>
           <button type="button" onClick={() => refetch()} disabled={isFetching} style={retryButtonStyle}>
             {isFetching ? 'Retrying…' : 'Try again'}
           </button>
@@ -110,18 +126,40 @@ const mainStyle: CSSProperties = {
   paddingTop: 'var(--space-4)',
 };
 
-const mutedTextStyle: CSSProperties = {
-  color: 'var(--ink-secondary)',
-  fontSize: 14,
-  textAlign: 'center',
-};
-
 const centeredColumnStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
+  textAlign: 'center',
   gap: 'var(--space-3)',
   padding: 'var(--space-6) var(--space-4)',
+};
+
+// The de-escalated error glyph field: a neutral border-hairline ring (NOT accent, NOT red) holding
+// the ink-secondary refresh arrow — warm and calm, signalling "recoverable", not "alarm".
+const errorGlyphFieldStyle: CSSProperties = {
+  width: 84,
+  height: 84,
+  borderRadius: 'var(--radius-full)',
+  border: '1px solid var(--border-hairline)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const errorHeadlineStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 19,
+  fontWeight: 700,
+  lineHeight: 1.3,
+  color: 'var(--ink-primary)',
+};
+
+const errorSublineStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 14,
+  lineHeight: 1.45,
+  color: 'var(--ink-secondary)',
 };
 
 const retryButtonStyle: CSSProperties = {
