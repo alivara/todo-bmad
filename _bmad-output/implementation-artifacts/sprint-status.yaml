@@ -77,9 +77,9 @@ development_status:
 
   # Epic 4: Continuous Integration & Quality Gate  (prioritized: run next)
   # Story 4.1 implemented + auto-reviewed via bmad-dev-auto in worktree
-  # story/4-1-ci-fast-lane-quality-gate-unit-tests → review (human gates PR/merge) on 2026-07-19
+  # story/4-1-ci-fast-lane-quality-gate-unit-tests → done (PR #11 merged to main, CI green) on 2026-07-19
   epic-4: in-progress
-  4-1-ci-fast-lane-quality-gate-unit-tests: review
+  4-1-ci-fast-lane-quality-gate-unit-tests: done
   4-2-ci-integration-e2e-lane-health-gated: backlog
   4-3-merge-protection-status-surface-docs: backlog
   epic-4-retrospective: optional
