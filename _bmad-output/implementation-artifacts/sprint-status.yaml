@@ -57,18 +57,21 @@ development_status:
   1-1-project-skeleton-one-command-startup: done
   1-2-create-a-todo-optimistic-end-to-end: done
   1-3-view-the-persistent-task-list: done
-  epic-1-retrospective: optional
+  # Epic 1 retrospective completed 2026-07-19 → epic-1-retro-2026-07-19.md
+  epic-1-retrospective: done
 
   # Epic 2: Complete the Task Loop — COMPLETE (all stories done; PRs #9/#10/#14 merged 2026-07-19)
   epic-2: done
   2-1-complete-a-task-toggle-with-the-payoff: done
   2-2-edit-a-task-in-place: done
   2-3-delete-a-task-with-undo: done
-  epic-2-retrospective: optional
+  # Epic 2 retrospective completed 2026-07-19 → epic-2-retro-2026-07-19.md
+  epic-2-retrospective: done
 
   # Epic 3: Trustworthy, Polished Experience
   epic-3: in-progress
-  3-1-unified-error-contract-systematized-rollback: review
+  # story/3-1-unified-error-contract-systematized-rollback → done (PR #20 merged, CI green) on 2026-07-19
+  3-1-unified-error-contract-systematized-rollback: done
   3-2-polished-loading-empty-error-states: review
   3-3-progressive-character-limit-feedback: backlog
   3-4-warm-dark-theme-toggle: backlog
@@ -87,3 +90,18 @@ development_status:
   4-3-merge-protection-status-surface-docs: done
   # Epic 4 retrospective completed 2026-07-19 → epic-4-retro-2026-07-19.md (no action items opened)
   epic-4-retrospective: done
+
+# Action items surfaced by retrospectives (open items carried forward)
+action_items:
+  - epic: 1
+    action: "Palette AA-contrast fix: darken --ink-secondary (~#6f6656, >=4.6:1), raise completed-row --ink-muted (>=4.5:1), fix the Add-button contrast, then drop the color-contrast exclusion in web/tests/e2e/a11y.spec.ts"
+    owner: "Story 3.5 (needs designer sign-off)"
+    status: open
+  - epic: 2
+    action: "R1 systematized cross-mutation optimistic-rollback wrapper (P0): unify the ad-hoc per-mutation rollbacks from 2.1/2.2/2.3 into one wrapper (visible, id-scoped, auto-clearing error; reconcile-to-server)"
+    owner: "Epic 3 / Story 3.1 (unified-error-contract & systematized rollback)"
+    status: in-progress
+  - epic: 2
+    action: "Test-integrity agreement: mirror prod config in tests (no staleTime:Infinity masking) and proactively test the crux/riskiest branch of each story rather than leaving it for review"
+    owner: "dev process (all stories)"
+    status: open
