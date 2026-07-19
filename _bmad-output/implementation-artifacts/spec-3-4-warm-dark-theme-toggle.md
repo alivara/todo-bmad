@@ -2,7 +2,7 @@
 title: 'Warm-dark theme toggle'
 type: 'feature'
 created: '2026-07-19'
-status: 'ready-for-dev'
+status: 'review'
 baseline_revision: '4c51a1d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -97,3 +97,11 @@ Resolutions (from the DESIGN spine + the standard Next App-Router theme pattern)
 
 **Manual checks:**
 - `docker compose up`: click the sun/moon toggle → the whole app flips to warm-charcoal dark (warm, not blue-black) and back; reload → the choice sticks; clear storage + set OS to dark → first load is dark with no light flash; tap the avatar → nothing; tab to the toggle → a visible focus ring; check the dark theme reads warmly in both the list and the editor.
+
+## Auto Run Result
+
+Status: **review** (ready for human PR review).
+
+- **Implemented:** header theme toggle (sun/moon) stamping `data-theme` on `<html>`, activating the existing warm-charcoal `-dark` token seam; `localStorage['todo-theme']` persistence; RD-6 first-load (stored → OS `prefers-color-scheme`); blocking inline init script + `suppressHydrationWarning` for no-flash; CSS-driven icon swap (no React theme state → no hydration mismatch); non-functional placeholder avatar; header extracted to `Header.tsx`.
+- **Review (Pixel — web slice):** no HIGH. Verified correct: the hydration/no-flash seam, RD-6 precedence, the CSS icon-swap state matrix, token discipline (no value changed), all 3 ACs, and test quality (no strict-mode locator traps). Fixed: **M1** — declared `color-scheme: light|dark` per theme so UA chrome (scrollbars/canvas) tracks the palette (no cold light scrollbar / white flash on dark); **L3** — explicit sun display + de-duped icon rules. **L2** (static `aria-label`) left as-designed (the stateless design deliberately avoids a hydration mismatch).
+- **Gates:** `test:unit` 108/108, `lint`, `format:check`, `tsc` (new files clean) all green. E2E theme + a11y-dark specs are type-correct; the dockerized E2E lane runs in CI.
