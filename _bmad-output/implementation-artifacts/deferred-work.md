@@ -32,3 +32,17 @@
 - source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
   summary: No committed Node version pin — CI floats on `node-version: '22'` and there is no `.nvmrc`/`engines`, so CI and local dev can drift within the 22.x line.
   evidence: Go is pinned via `go.mod`; Node has no in-repo source of truth. Fix touches web source/config (outside this workflow-only story): add `web/.nvmrc` (or `engines.node`) and switch the workflow to `node-version-file`.
+
+## Deferred from: security review — XSS & injection (2026-07-19, Murat / TEA)
+
+> Full report: `_bmad-output/test-artifacts/security-review-xss-injection.md`. Review verdict PASS (no exploitable XSS/injection). These are LOW/INFO **hardening** items — the natural home is **Story 3.5 (responsive polish, voice & accessibility floor)**, which already owns the v1 a11y/security floor + NFR9/NFR10.
+
+- source_spec: `security-review-xss-injection.md` (SEC-1)
+  summary: No Content-Security-Policy or security response headers — `web/next.config.mjs` sets none and there is no `middleware.ts`; React output-escaping is the SOLE XSS control.
+  evidence: LOW/defense-in-depth. A future `dangerouslySetInnerHTML` or a compromised dependency would execute today; a CSP (`script-src 'self'`) plus `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY` would blunt it and stop clickjacking/MIME-sniffing. **Fix (Epic 3 / Story 3.5):** add `async headers()` in `web/next.config.mjs` (ready-to-paste snippet incl. the `style-src 'unsafe-inline'` caveat for Next's inline runtime is in the report) + a CI/E2E assertion that the CSP header is served.
+- source_spec: `security-review-xss-injection.md` (SEC-1b)
+  summary: No regression test locking the React-escaping guarantee for stored todo text.
+  evidence: LOW. Add an RTL test asserting a todo whose title is `<img src=x onerror=alert(1)>` renders as escaped text (not a live element), so a future refactor to a raw-HTML sink fails loudly. Pairs with the CSP work in Story 3.5.
+- source_spec: `security-review-xss-injection.md` (SEC-3)
+  summary: Stored todo text is raw (not HTML-encoded at rest) — correct today because React encodes at render.
+  evidence: INFO/forward-guard. Any FUTURE non-React render of todo text (HTML email, CSV/PDF export, server-rendered HTML fragment) MUST apply context-appropriate output encoding, or stored XSS becomes reachable there. Add an encoding step + note in that feature's spec when introduced.
