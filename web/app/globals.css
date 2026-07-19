@@ -89,3 +89,36 @@ body {
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
 }
+
+/*
+ * The completed-toggle payoff (Story 2.1). A CSS-only spring — no animation dependency
+ * (the visual system is bespoke). The check glyph scales from small, overshoots past 1,
+ * then settles, giving the deliberate bounce that makes checking a task feel good. It
+ * DECORATES the already-applied optimistic status change and never gates it (the cache
+ * flips the status in ≤100ms regardless of whether/when this animation runs).
+ */
+@keyframes check-pop {
+  0% {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.check-pop {
+  animation: check-pop 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/*
+ * Reduced-motion guard (UX-DR / a11y): honor the OS preference by disabling the bounce, so
+ * the state change is instant. The status still changes — only the decorative motion is cut.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .check-pop {
+    animation: none;
+  }
+}

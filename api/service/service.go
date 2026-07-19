@@ -41,24 +41,76 @@ func (s *Service) ListTodos(ctx context.Context) ([]model.Todo, error) {
 // optimistically rendered client text equals the stored text. The server assigns
 // id/status/timestamps (AD-7) — a client-supplied status is never accepted here.
 func (s *Service) CreateTodo(ctx context.Context, title, description string) (model.Todo, error) {
-	title = strings.TrimSpace(title)
-	description = strings.TrimSpace(description)
-
-	if title == "" {
-		return model.Todo{}, model.ValidationError{Message: "title is required"}
+	title, err := validateTitle(title)
+	if err != nil {
+		return model.Todo{}, err
 	}
-	if utf8.RuneCountInString(title) > MaxTitleLen {
-		return model.Todo{}, model.ValidationError{
-			Message: fmt.Sprintf("title must be at most %d characters", MaxTitleLen),
-		}
-	}
-	if utf8.RuneCountInString(description) > MaxDescriptionLen {
-		return model.Todo{}, model.ValidationError{
-			Message: fmt.Sprintf("description must be at most %d characters", MaxDescriptionLen),
-		}
+	description, err = validateDescription(description)
+	if err != nil {
+		return model.Todo{}, err
 	}
 
 	return s.repo.CreateTodo(ctx, title, description)
+}
+
+// UpdateTodo validates and applies a partial update (AD-6, AD-10). Each provided (non-nil)
+// field is validated independently — status against the AD-8 allow-list ({active,completed},
+// the second sync point besides the DB CHECK), title/description via the SAME trim+rune-cap
+// helpers CreateTodo uses (no duplication). An invalid field returns a ValidationError and
+// never reaches the repository. The trimmed value replaces the caller's pointer so the
+// persisted text equals the optimistically rendered text. A missing id surfaces from the
+// repository as model.NotFoundError, propagated unchanged.
+func (s *Service) UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error) {
+	if title != nil {
+		validated, err := validateTitle(*title)
+		if err != nil {
+			return model.Todo{}, err
+		}
+		title = &validated
+	}
+	if description != nil {
+		validated, err := validateDescription(*description)
+		if err != nil {
+			return model.Todo{}, err
+		}
+		description = &validated
+	}
+	if status != nil {
+		if *status != model.StatusActive && *status != model.StatusCompleted {
+			return model.Todo{}, model.ValidationError{
+				Message: fmt.Sprintf("status must be one of %q or %q", model.StatusActive, model.StatusCompleted),
+			}
+		}
+	}
+
+	return s.repo.UpdateTodo(ctx, id, title, description, status)
+}
+
+// validateTitle trims then applies the required + ≤200-code-point rule (AD-10). The trimmed
+// value is returned so callers persist exactly what was validated. Shared by Create + Update.
+func validateTitle(title string) (string, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "", model.ValidationError{Message: "title is required"}
+	}
+	if utf8.RuneCountInString(title) > MaxTitleLen {
+		return "", model.ValidationError{
+			Message: fmt.Sprintf("title must be at most %d characters", MaxTitleLen),
+		}
+	}
+	return title, nil
+}
+
+// validateDescription trims then applies the optional ≤2000-code-point rule (AD-10). Blank is
+// valid ("" persisted, never null). The trimmed value is returned. Shared by Create + Update.
+func validateDescription(description string) (string, error) {
+	description = strings.TrimSpace(description)
+	if utf8.RuneCountInString(description) > MaxDescriptionLen {
+		return "", model.ValidationError{
+			Message: fmt.Sprintf("description must be at most %d characters", MaxDescriptionLen),
+		}
+	}
+	return description, nil
 }
 
 // Health reports whether the datastore is reachable (readiness for GET /health).

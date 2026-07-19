@@ -1,22 +1,26 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Todo } from '@shared/todo';
 import { formatRelativeTime } from '@/lib/relativeTime';
+import { todosQueryKey } from '@/lib/todos';
+import { useToggleTodo } from '@/lib/useToggleTodo';
 
 /**
- * Read-only todo row (Story 1.3). Renders title, an optional 2-line-clamped
- * description with an in-place `more`/`less` reveal, a status-reflecting treatment,
- * and an RD-1 relative time. NO interactive checkbox / toggle / edit — status is
- * conveyed purely through read-only styling (active = normal, completed = recessed +
- * strikethrough). The Epic-2 toggle interaction is out of scope.
+ * Interactive todo row (Story 2.1, extending the Story 1.3 read-only anatomy). Renders a
+ * REAL semantic checkbox (role="checkbox" + aria-checked) that drives the optimistic
+ * useToggleTodo mutation, the title, an optional 2-line-clamped description with an in-place
+ * `more`/`less` reveal, and an RD-1 relative time.
+ *
+ * The row OWNS its card chrome so it can vary the treatment by status (moved here from
+ * page.tsx): active is a raised card (surface-raised + hairline border + shadow); completed
+ * recedes (transparent background/border, no shadow, ~0.85 opacity). Completing flips the
+ * status in the cache in ≤100ms; the terracotta check plays a CSS spring (check-pop) that
+ * DECORATES but never gates that change, and the recede is a matching transition. Reduced
+ * motion is honored in globals.css (the bounce is disabled, the state change stays instant).
  *
  * `description` is "" when empty (never null, AD-6) → no description line is rendered.
- * The CSS `-webkit-line-clamp` always applies the visual 2-line clamp while collapsed;
- * whether the `more`/`less` reveal appears is driven by a REAL overflow measurement
- * (`scrollHeight > clientHeight` while clamped). A code-point-length heuristic seeds the
- * state for SSR / first paint / jsdom (where layout metrics are 0 and unmeasurable), so
- * the reveal stays deterministic and unit-testable while being accurate in the browser.
  */
 
 // First-paint / SSR / jsdom seed only — roughly two lines of body text in the ~560px
@@ -28,9 +32,21 @@ export function TodoRow({ todo }: { todo: Todo }) {
   const descriptionRef = useRef<HTMLParagraphElement>(null);
   const [overflows, setOverflows] = useState(() => [...todo.description].length > DESCRIPTION_CLAMP_LIMIT);
 
+  const queryClient = useQueryClient();
+  const toggle = useToggleTodo();
+
   const isCompleted = todo.status === 'completed';
   const hasDescription = todo.description !== '';
   const collapsed = !expanded;
+
+  // Play the check-pop spring ONLY on a fresh, user-triggered active->completed transition —
+  // not when an already-completed todo mounts on page load / refetch (that would replay the
+  // payoff motion unprompted). Seeded from the initial status so mount never pops.
+  const wasCompletedRef = useRef(isCompleted);
+  const justCompleted = isCompleted && !wasCompletedRef.current;
+  useEffect(() => {
+    wasCompletedRef.current = isCompleted;
+  }, [isCompleted]);
 
   // Measure real 2-line overflow while clamped (the heuristic can't know rendered width,
   // wide glyphs, or hard newlines). Guarded on clientHeight>0 so jsdom (metrics 0) keeps
@@ -50,46 +66,163 @@ export function TodoRow({ todo }: { todo: Todo }) {
     return () => observer.disconnect();
   }, [todo.description, hasDescription, collapsed]);
 
+  // Flip to the opposite status. Read the CURRENT status from the query cache rather than the
+  // possibly-stale `todo` prop (which only updates after React commits the prior flip), so a
+  // rapid re-toggle sends the correct target and can't desync. Optimistic + non-blocking (AD-4);
+  // no client-generated timestamp (AD-7).
+  function handleToggle() {
+    const current =
+      queryClient.getQueryData<Todo[]>(todosQueryKey)?.find((t) => t.id === todo.id)?.status ?? todo.status;
+    toggle.mutate({ id: todo.id, status: current === 'completed' ? 'active' : 'completed' });
+  }
+
   return (
-    <div style={containerStyle}>
-      <p style={{ ...titleStyle, ...(isCompleted ? completedTextStyle : null) }}>{todo.title}</p>
+    <div style={{ ...cardBaseStyle, ...(isCompleted ? completedCardStyle : activeCardStyle) }}>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={isCompleted}
+        aria-label={isCompleted ? `Mark ${todo.title} as active` : `Mark ${todo.title} as complete`}
+        onClick={handleToggle}
+        style={{ ...checkboxBaseStyle, ...(isCompleted ? checkboxCompletedStyle : checkboxActiveStyle) }}
+      >
+        {isCompleted && (
+          // The glyph mounts while completed; the check-pop CSS spring (globals.css) is applied
+          // ONLY on a fresh user toggle (justCompleted) so it doesn't replay on page load.
+          <svg
+            className={justCompleted ? 'check-pop' : undefined}
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M2.5 7.5L5.5 10.5L11.5 3.5"
+              stroke="var(--on-accent)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
 
-      {hasDescription && (
-        <div style={descriptionWrapStyle}>
-          <div style={descriptionClampBoxStyle}>
-            <p
-              ref={descriptionRef}
-              style={{
-                ...descriptionStyle,
-                ...(isCompleted ? completedTextStyle : null),
-                ...(collapsed ? clampStyle : null),
-              }}
-            >
-              {todo.description}
-            </p>
-            {collapsed && overflows && <span aria-hidden="true" style={fadeStyle} />}
+      <div style={contentStyle}>
+        <p style={{ ...titleStyle, ...(isCompleted ? completedTextStyle : null) }}>{todo.title}</p>
+
+        {hasDescription && (
+          <div style={descriptionWrapStyle}>
+            <div style={descriptionClampBoxStyle}>
+              <p
+                ref={descriptionRef}
+                style={{
+                  ...descriptionStyle,
+                  ...(isCompleted ? completedTextStyle : null),
+                  ...(collapsed ? clampStyle : null),
+                }}
+              >
+                {todo.description}
+              </p>
+              {collapsed && overflows && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    ...fadeStyle,
+                    // Blend to the row's ACTUAL backdrop: the raised surface when active, or the
+                    // page canvas showing through the transparent completed card (P5).
+                    background: `linear-gradient(to bottom, transparent, ${
+                      isCompleted ? 'var(--surface-base)' : 'var(--surface-raised)'
+                    })`,
+                  }}
+                />
+              )}
+            </div>
+            {overflows && (
+              <button
+                type="button"
+                onClick={() => setExpanded((v) => !v)}
+                aria-expanded={expanded}
+                style={revealButtonStyle}
+              >
+                {expanded ? 'less' : 'more'}
+              </button>
+            )}
           </div>
-          {overflows && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              aria-expanded={expanded}
-              style={revealButtonStyle}
-            >
-              {expanded ? 'less' : 'more'}
-            </button>
-          )}
-        </div>
-      )}
+        )}
 
-      <time dateTime={todo.metadata.createdAt} style={timeStyle}>
-        {formatRelativeTime(todo.metadata.createdAt)}
-      </time>
+        <time dateTime={todo.metadata.createdAt} style={timeStyle}>
+          {formatRelativeTime(todo.metadata.createdAt)}
+        </time>
+
+        {toggle.isError && (
+          // Non-disruptive rollback notice (AC3): the checkbox has already flipped back; this
+          // tells the user the save failed. Reuses the sanctioned copy (matches AddInput).
+          <p role="alert" style={toggleErrorStyle}>
+            Something got in the way. Try again.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
-const containerStyle: CSSProperties = {
+// The card chrome, owned by the row so it varies by status. The transition gives the recede
+// its settle; the ≤100ms cache flip is independent of it (motion decorates, never gates).
+const cardBaseStyle: CSSProperties = {
+  display: 'flex',
+  gap: 'var(--space-3)',
+  alignItems: 'flex-start',
+  borderRadius: 'var(--radius-md)',
+  padding: 'var(--space-4)',
+  transition: 'background 350ms ease, box-shadow 350ms ease, opacity 350ms ease, border-color 350ms ease',
+};
+
+const activeCardStyle: CSSProperties = {
+  background: 'var(--surface-raised)',
+  border: '1px solid var(--border-hairline)',
+  boxShadow: 'var(--shadow-row)',
+  opacity: 1,
+};
+
+// Recessed completed treatment: transparent surface/border, no shadow, dimmed.
+const completedCardStyle: CSSProperties = {
+  background: 'transparent',
+  border: '1px solid transparent',
+  boxShadow: 'none',
+  opacity: 0.85,
+};
+
+const checkboxBaseStyle: CSSProperties = {
+  flexShrink: 0,
+  width: 24,
+  height: 24,
+  marginTop: 2,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: 'var(--radius-full)',
+  cursor: 'pointer',
+  transition: 'background 200ms ease, border-color 200ms ease',
+};
+
+// Active: an empty ink-muted ring inviting completion.
+const checkboxActiveStyle: CSSProperties = {
+  background: 'transparent',
+  border: '2px solid var(--ink-muted)',
+};
+
+// Completed: a filled terracotta circle holding the on-accent check.
+const checkboxCompletedStyle: CSSProperties = {
+  background: 'var(--accent)',
+  border: '2px solid var(--accent)',
+};
+
+const contentStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--space-1)',
@@ -173,4 +306,11 @@ const timeStyle: CSSProperties = {
 const completedTextStyle: CSSProperties = {
   textDecoration: 'line-through',
   color: 'var(--ink-muted)',
+};
+
+const toggleErrorStyle: CSSProperties = {
+  margin: 0,
+  marginTop: 'var(--space-1)',
+  fontSize: 13,
+  color: 'var(--ink-secondary)',
 };

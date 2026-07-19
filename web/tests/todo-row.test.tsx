@@ -1,11 +1,15 @@
-import { afterEach, describe, it, expect } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import type { Todo } from '@shared/todo';
 import { TodoRow } from '@/app/components/TodoRow';
 
-// Read-only row anatomy (Story 1.3): title/description/relative-time render, ""-description
-// omission, the clamp `more`→expand-in-place→`less` reveal, and completed styling. Locators
-// are role/label/text, never test ids.
+// Row anatomy (Story 1.3) + interactive checkbox (Story 2.1): title/description/relative-time
+// render, ""-description omission, the clamp `more`→expand-in-place→`less` reveal, completed
+// styling, and a REAL semantic checkbox that fires an optimistic toggle PATCH. Locators are
+// role/label/text, never test ids. TodoRow now uses useToggleTodo, so it is wrapped in a
+// QueryClientProvider; the network is stubbed and PATCH calls are asserted.
 
 // A createdAt years in the past yields a STABLE absolute date regardless of the real
 // clock ("Jan 15, 2020"), so the relative-time assertion needs no fake clock.
@@ -27,11 +31,38 @@ const LONG_DESCRIPTION =
   'clamps it and offers a more affordance to reveal the full text in place rather than ' +
   'entering any kind of edit mode whatsoever.';
 
-afterEach(cleanup);
+function renderRow(todo: Todo) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return render(<TodoRow todo={todo} />, { wrapper });
+}
+
+function patchCalls(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'PATCH');
+}
+
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  // Default: PATCH succeeds, echoing a completed row (tests that need failure override this).
+  fetchMock = vi.fn(async () => ({
+    ok: true,
+    status: 200,
+    json: async () => makeTodo({ status: 'completed' }),
+  }));
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('TodoRow', () => {
   it('renders the title, description, and RD-1 relative time', () => {
-    render(<TodoRow todo={makeTodo({ description: 'Attach the deck' })} />);
+    renderRow(makeTodo({ description: 'Attach the deck' }));
 
     expect(screen.getByText('Email Sam the Q3 numbers')).toBeInTheDocument();
     expect(screen.getByText('Attach the deck')).toBeInTheDocument();
@@ -39,7 +70,7 @@ describe('TodoRow', () => {
   });
 
   it('omits the description line entirely when description is "" (never null)', () => {
-    const { container } = render(<TodoRow todo={makeTodo({ description: '' })} />);
+    const { container } = renderRow(makeTodo({ description: '' }));
 
     // Only the title paragraph is present; no second (description) paragraph.
     expect(container.querySelectorAll('p')).toHaveLength(1);
@@ -47,12 +78,12 @@ describe('TodoRow', () => {
   });
 
   it('does not offer a reveal affordance for a short description', () => {
-    render(<TodoRow todo={makeTodo({ description: 'Short one' })} />);
+    renderRow(makeTodo({ description: 'Short one' }));
     expect(screen.queryByRole('button', { name: /more/i })).not.toBeInTheDocument();
   });
 
   it('clamps a long description and expands it in place via more/less (not edit mode)', () => {
-    render(<TodoRow todo={makeTodo({ description: LONG_DESCRIPTION })} />);
+    renderRow(makeTodo({ description: LONG_DESCRIPTION }));
 
     // Collapsed: the description is clamped and a "more" reveal is offered.
     const description = screen.getByText(LONG_DESCRIPTION);
@@ -75,18 +106,49 @@ describe('TodoRow', () => {
   });
 
   it('renders an active row without strikethrough', () => {
-    render(<TodoRow todo={makeTodo({ status: 'active' })} />);
+    renderRow(makeTodo({ status: 'active' }));
     expect(screen.getByText('Email Sam the Q3 numbers')).not.toHaveStyle({
       textDecoration: 'line-through',
     });
   });
 
-  it('renders a completed row recessed + struck through (read-only, no checkbox)', () => {
-    render(<TodoRow todo={makeTodo({ status: 'completed' })} />);
+  // Story 2.1: the checkbox is a REAL semantic control (role="checkbox") exposing aria-checked.
+  it('renders an unchecked checkbox on an active row', () => {
+    renderRow(makeTodo({ status: 'active' }));
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('renders a completed row struck through with a checked checkbox', () => {
+    renderRow(makeTodo({ status: 'completed' }));
 
     const title = screen.getByText('Email Sam the Q3 numbers');
     expect(title).toHaveStyle({ textDecoration: 'line-through' });
-    // No interactive status control (Epic 2): no checkbox in the read-only row.
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox');
+    expect(checkbox).toHaveAttribute('aria-checked', 'true');
+  });
+
+  // AC1: clicking an active row's checkbox fires a PATCH flipping the status to completed.
+  it('clicking an active checkbox PATCHes status=completed', async () => {
+    renderRow(makeTodo({ id: 'id-1', status: 'active' }));
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    await waitFor(() => expect(patchCalls(fetchMock)).toHaveLength(1));
+    const [url, init] = patchCalls(fetchMock)[0];
+    expect(url).toBe('/api/todos/id-1');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ status: 'completed' });
+  });
+
+  // AC1: clicking a completed row's checkbox flips it back to active.
+  it('clicking a completed checkbox PATCHes status=active', async () => {
+    renderRow(makeTodo({ id: 'id-1', status: 'completed' }));
+
+    fireEvent.click(screen.getByRole('checkbox'));
+
+    await waitFor(() => expect(patchCalls(fetchMock)).toHaveLength(1));
+    const [url, init] = patchCalls(fetchMock)[0];
+    expect(url).toBe('/api/todos/id-1');
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({ status: 'active' });
   });
 });

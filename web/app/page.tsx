@@ -69,7 +69,9 @@ export default function HomePage() {
         }}
       >
         {data.map((todo) => (
-          <li key={todo.id} style={rowStyle}>
+          // Plain semantic list wrapper; the card chrome now lives in TodoRow so it can vary
+          // by status (raised when active, recessed when completed) — Story 2.1.
+          <li key={todo.id}>
             <TodoRow todo={todo} />
           </li>
         ))}
@@ -119,15 +121,4 @@ const retryButtonStyle: CSSProperties = {
   fontFamily: 'var(--font-sans)',
   fontSize: 16,
   cursor: 'pointer',
-};
-
-const rowStyle: CSSProperties = {
-  background: 'var(--surface-raised)',
-  border: '1px solid var(--border-hairline)',
-  borderRadius: 'var(--radius-md)',
-  boxShadow: 'var(--shadow-row)',
-  padding: 'var(--space-4)',
-  fontSize: 17,
-  fontWeight: 500,
-  color: 'var(--ink-primary)',
 };

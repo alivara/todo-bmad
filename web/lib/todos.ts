@@ -1,4 +1,4 @@
-import type { CreateTodoRequest, Todo } from '@shared/todo';
+import type { CreateTodoRequest, Todo, UpdateTodoRequest } from '@shared/todo';
 
 // The single query key for the todo list. TanStack Query owns this cache (AD-4).
 export const todosQueryKey = ['todos'] as const;
@@ -35,6 +35,27 @@ export async function createTodo(input: CreateTodoRequest): Promise<Todo> {
 
   if (!res.ok) {
     throw new Error(`Failed to create todo (status ${res.status})`);
+  }
+
+  return (await res.json()) as Todo;
+}
+
+/**
+ * Partially updates a todo via the same-origin dumb proxy (AD-3) → `PATCH /api/todos/{id}`.
+ * Sends ONLY the changed fields (AD-6 partial update); the server bumps `updatedAt` and
+ * returns the full AD-6 resource in the `200` body, which the caller settles into the cache
+ * (AD-7). A non-2xx response throws so the mutation's `onError` fires and the optimistic
+ * change rolls back visibly (AD-4).
+ */
+export async function updateTodo(id: string, patch: UpdateTodoRequest): Promise<Todo> {
+  const res = await fetch(`/api/todos/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(patch),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to update todo (status ${res.status})`);
   }
 
   return (await res.json()) as Todo;
