@@ -13,6 +13,11 @@ const DESCRIPTION_PLACEHOLDER = 'Add a description (optional)';
  * The pinned, always-focused add-input (UX-DR5). Submits on Enter or the Add button
  * (equal alternatives). Mirrors the server validation for instant feedback, and drives
  * the optimistic create mutation.
+ *
+ * 2026-07-20 UI consolidation: the title row (title input + Add button) and the optional
+ * description live inside ONE accent-bordered container (the resting border + raised surface
+ * moved off the inner fields onto the container), so the add form reads as a single box with a
+ * quieter description stacked below the title — not two separate boxes.
  */
 export function AddInput() {
   const [value, setValue] = useState('');
@@ -59,51 +64,58 @@ export function AddInput() {
 
   return (
     <form onSubmit={handleSubmit} style={formStyle} noValidate>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          submittedRef.current = false; // any keystroke re-arms the guard
-          // Clear a stale add-error the moment the user edits, so a prior rejection's
-          // banner doesn't linger over the next (unrelated) task being typed (AC6).
-          if (create.isError) create.reset();
-        }}
-        placeholder="Add a task…"
-        aria-label="Add a task"
-        aria-invalid={overCap || undefined}
-        className="add-input"
-        style={inputStyle}
-      />
-      <button type="submit" aria-label="Add" className="focus-ring" style={buttonStyle}>
-        Add
-      </button>
-      {/* The counter is a full-width row (mirrors the error row's flexBasis:100%): hidden until
-          within 20 of the cap, then a quiet accent-bold `n / 200`. The flexBasis lives on the
-          counter itself so at rest NOTHING renders (no empty row-gap gutter). Counts the raw
-          value; the submit guard above still counts the trimmed value. */}
-      <CharCounter value={value} max={MAX_TITLE} style={counterRowStyle} />
-      {/* Optional description — a full-width row below the title/button pair on the wrapping flex
-          form. Mirrors the edit-in-place editor's textarea (TodoRow): rows=2, verbatim placeholder,
-          aria-invalid when over-cap. A <textarea> does NOT submit on Enter (newline), so no keydown
-          handler is added here — only the title input / Add button submit. */}
-      <textarea
-        value={description}
-        onChange={(e) => {
-          setDescription(e.target.value);
-          submittedRef.current = false; // any keystroke re-arms the double-add guard
-          // Clear a stale add-error the moment the user edits either field (AC6).
-          if (create.isError) create.reset();
-        }}
-        rows={2}
-        placeholder={DESCRIPTION_PLACEHOLDER}
-        aria-label="Description"
-        aria-invalid={descOverCap || undefined}
-        className="add-input"
-        style={descriptionStyle}
-      />
-      <CharCounter value={description} max={MAX_DESCRIPTION} style={counterRowStyle} />
+      {/* Single bordered container — holds the title row on top and the optional description
+          stacked below it (2026-07-20 UI consolidation). The resting accent border + raised
+          surface live here; the inner fields are borderless/transparent so it reads as one box. */}
+      <div style={fieldContainerStyle}>
+        <div style={titleRowStyle}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              submittedRef.current = false; // any keystroke re-arms the guard
+              // Clear a stale add-error the moment the user edits, so a prior rejection's
+              // banner doesn't linger over the next (unrelated) task being typed (AC6).
+              if (create.isError) create.reset();
+            }}
+            placeholder="Add a task…"
+            aria-label="Add a task"
+            aria-invalid={overCap || undefined}
+            className="add-input"
+            style={inputStyle}
+          />
+          <button type="submit" aria-label="Add" className="focus-ring" style={buttonStyle}>
+            Add
+          </button>
+        </div>
+        {/* The counter row is hidden until within 20 of the cap, then a quiet accent-bold `n / 200`.
+            At rest NOTHING renders (no empty gutter). Counts the raw value; the submit guard above
+            still counts the trimmed value. */}
+        <CharCounter value={value} max={MAX_TITLE} style={counterRowStyle} />
+        {/* Optional description — stacked below the title INSIDE the same container, set off by a
+            hairline. Mirrors the edit-in-place editor's textarea (TodoRow): rows=2, verbatim
+            placeholder, aria-invalid when over-cap, quieter/smaller type. A <textarea> does NOT
+            submit on Enter (newline), so no keydown handler is added — only the title input / Add
+            button submit. */}
+        <textarea
+          value={description}
+          onChange={(e) => {
+            setDescription(e.target.value);
+            submittedRef.current = false; // any keystroke re-arms the double-add guard
+            // Clear a stale add-error the moment the user edits either field (AC6).
+            if (create.isError) create.reset();
+          }}
+          rows={2}
+          placeholder={DESCRIPTION_PLACEHOLDER}
+          aria-label="Description"
+          aria-invalid={descOverCap || undefined}
+          className="add-input"
+          style={descriptionStyle}
+        />
+        <CharCounter value={description} max={MAX_DESCRIPTION} style={counterRowStyle} />
+      </div>
       {create.isError &&
         (is4xx(create.error) ? (
           // 4xx = the user's input (a client/server validation mirror drift, AD-10). Inline the
@@ -132,40 +144,58 @@ export function AddInput() {
   );
 }
 
+// The form stacks the single field-container and any error row.
 const formStyle: CSSProperties = {
   display: 'flex',
-  flexWrap: 'wrap',
+  flexDirection: 'column',
+  gap: 'var(--space-2)',
+};
+
+// The one accent-bordered box holding both fields. The resting accent border + raised surface
+// (previously duplicated on each inner field) live here now, so the title and description read as
+// a single container. The accent-soft focus glow stays per-field on `.add-input:focus-visible`
+// (globals.css) so tabbing between the two fields still gives a visible focus delta (WCAG 2.4.7).
+const fieldContainerStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-1)',
+  background: 'var(--surface-raised)',
+  border: '1.5px solid var(--accent)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '6px 8px',
+};
+
+// Title input + Add button share the top row of the container.
+const titleRowStyle: CSSProperties = {
+  display: 'flex',
   alignItems: 'center',
   gap: 'var(--space-2)',
 };
 
-// Resting accent border stays here; the accent-soft glow + outline:none moved to the `.add-input`
-// :focus-visible rule (globals.css) so the halo only paints while focused (Story 3.5). Net: the
-// border is always visible, the glow appears only on focus.
+// Borderless/transparent within the container — the box owns the border and surface now.
 const inputStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
-  background: 'var(--surface-raised)',
-  border: '1.5px solid var(--accent)',
-  borderRadius: 'var(--radius-sm)',
-  padding: '12px 14px',
+  background: 'transparent',
+  border: 'none',
+  // Comfortable vertical padding so the title input matches the Add button's height (row stays
+  // aligned) and keeps a ≥ comfortable tap target (review patch — WCAG 2.5.8).
+  padding: '10px 8px',
   fontFamily: 'var(--font-sans)',
   fontSize: 16,
   color: 'var(--ink-primary)',
 };
 
-// The optional description textarea: a full-width row (flexBasis:100%) sharing the add-input field
-// idiom. Like the title input, the resting accent border stays here but the accent-soft glow +
-// outline:none live on the `.add-input:focus-visible` rule (globals.css) — so this optional,
-// never-auto-focused field no longer looks permanently focused and tabbing into it gives a visible
-// delta (WCAG 2.4.7; closes the create-description focus-halo debt). No new tokens.
+// The optional description: a quieter, smaller field stacked below the title inside the same box,
+// set off by a hairline (echoing the inline edit-in-place editor). Borderless/transparent like the
+// title input; the container carries the accent border.
 const descriptionStyle: CSSProperties = {
-  flexBasis: '100%',
+  width: '100%',
   boxSizing: 'border-box',
-  background: 'var(--surface-raised)',
-  border: '1.5px solid var(--accent)',
-  borderRadius: 'var(--radius-sm)',
-  padding: '12px 14px',
+  background: 'transparent',
+  border: 'none',
+  borderTop: '1px solid var(--border-hairline)',
+  padding: '8px 8px 4px',
   fontFamily: 'var(--font-sans)',
   fontSize: 14,
   lineHeight: 1.45,
@@ -178,7 +208,7 @@ const buttonStyle: CSSProperties = {
   color: 'var(--accent-strong)',
   border: 'none',
   borderRadius: 'var(--radius-sm)',
-  padding: '12px 18px',
+  padding: '10px 18px',
   fontFamily: 'var(--font-sans)',
   fontSize: 16,
   fontWeight: 600,
@@ -186,16 +216,15 @@ const buttonStyle: CSSProperties = {
 };
 
 const errorStyle: CSSProperties = {
-  flexBasis: '100%',
   margin: 0,
   color: 'var(--ink-secondary)',
   fontSize: 13,
 };
 
-// Full-width row for the char counter, sitting below the input/button pair on the wrapping flex
-// form. The CharCounter renders nothing at rest, so this row is empty (zero height) until near-cap.
+// Full-width row for the char counter, sitting inside the container. The CharCounter renders
+// nothing at rest, so this row is empty (zero height) until near-cap.
 const counterRowStyle: CSSProperties = {
-  flexBasis: '100%',
+  width: '100%',
 };
 
 // The inline Try-again affordance for the 5xx/network class: an accent-colored text button (no

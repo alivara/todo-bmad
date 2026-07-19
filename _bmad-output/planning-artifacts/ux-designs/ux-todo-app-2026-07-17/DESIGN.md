@@ -4,7 +4,7 @@ description: Warm, soft, restrained single-user todo web app — cream & terraco
 status: final
 sources:
   - {planning_artifacts}/prds/prd-todo-app-2026-07-17/prd.md
-updated: 2026-07-17
+updated: 2026-07-20
 colors:
   # Cream & Terracotta — LIGHT (default theme)
   surface-base: '#F5EFE6'
@@ -85,6 +85,7 @@ components:
     placeholder-color: '{colors.ink-secondary}'
     text-color: '{colors.ink-primary}'
     typography: '{typography.input}'
+    description-field: 'stacked below the title inside the same container; {typography.description}, {colors.ink-secondary}'
   add-button:
     background: '{colors.accent-soft}'
     foreground: '{colors.accent}'
@@ -276,7 +277,7 @@ Visual specs only — interaction behavior and state transitions live in EXPERIE
 Lowercase **"todo"** in `wordmark` type (`ink-primary`) followed by a small **terracotta accent dot** (`accent`). The dot is the entire logo flourish — no icon, no lockup. Sits top-left of the header.
 
 ### Add-input (pinned, focused)
-A raised (`surface-raised`) field at `rounded.sm`, shown in its **focused** resting state: a 1.5px `accent` border with a soft `accent-soft` focus-ring halo. Placeholder "Add a task…" in `ink-secondary`; typed text in `ink-primary` at `input` size. A pill-shaped **Add** button (`accent-soft` fill, `accent` text) sits at the right as an equal alternative to pressing Enter. An optional leading "+" glyph (circular, accent-outlined) may precede the placeholder.
+A raised (`surface-raised`) field at `rounded.sm`, shown in its **focused** resting state: a 1.5px `accent` border with a soft `accent-soft` focus-ring halo — **one container** holding both fields. The **title** input sits on the first row with a pill-shaped **Add** button (`accent-soft` fill, `accent` text) at its right as an equal alternative to pressing Enter; the **optional description** sits **inside the same container, stacked below the title** — a quieter, smaller field (`description` size, `ink-secondary`), not its own separate box. Placeholder "Add a task…" in `ink-secondary`; typed text in `ink-primary` at `input` size. An optional leading "+" glyph (circular, accent-outlined) may precede the title placeholder.
 
 ### Char counter
 Small `meta`-size counter, right-aligned under the input, e.g. `184 / 200`. Hidden until the input approaches its cap (title 200, description 2000 — PRD FR24); the current number turns `accent` and bold as it nears the limit.
@@ -288,7 +289,7 @@ Raised card (`surface-raised`, `border-hairline`, `rounded.md`, soft row shadow)
 The **payoff state**, rendered *settled*: background and border drop to transparent, shadow removed, the row recedes toward the canvas (opacity ~0.85). The checkbox becomes a **filled terracotta circle** (`accent` fill and border) with a bold white (`on-accent`) checkmark. Title gets a `ink-muted` strikethrough and `ink-muted` color; meta also drops to `ink-muted`. Quiet, earned, done.
 
 ### Inline edit (edit-in-place)
-Clicking a row's text turns it into an inline editor — no modal, no separate screen. The row gains an `accent` border and `accent-soft` focus ring, stacks vertically, and shows: a **title field** (with selection highlighted in `accent-soft`), a second **optional description field** (separated by a dashed hairline, placeholder "Add a description (optional)"), and a small hint line — `Enter to save · Esc to cancel` (`meta`, `ink-secondary`, keys in `ink-primary`).
+Activating the row's **single edit affordance** (one cue, not one per line) turns it into an inline editor — no modal, no separate screen. The row gains an `accent` border and `accent-soft` focus ring, stacks vertically, and shows **both fields together**: a **title field** (with selection highlighted in `accent-soft`), a second **optional description field** (separated by a dashed hairline, placeholder "Add a description (optional)"), and a small hint line — `Enter to save · Esc to cancel` (`meta`, `ink-secondary`, keys in `ink-primary`).
 
 ### Delete affordance
 A **quiet ✕** icon button, `ink-secondary` and low-key at rest — surfacing on row hover. On hover it fills with `accent-soft` and the glyph turns `accent`. Never a loud red trash button; deletion is reversible and shouldn't feel alarming.

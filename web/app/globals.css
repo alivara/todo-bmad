@@ -287,6 +287,14 @@ body {
   transition: opacity 150ms ease;
 }
 
+/* Single edit affordance (2026-07-20 UI consolidation): the description line carries
+   `.todo-editable--no-cue` — it stays editable/clickable and keeps the hover/:focus-visible tint,
+   but its decorative pencil is suppressed so exactly ONE pencil (on the title) advertises edit per
+   row. `content: none` stops the pseudo-element from generating at all. */
+.todo-editable--no-cue::after {
+  content: none;
+}
+
 @media (hover: hover) {
   .todo-editable:hover::after,
   .todo-editable:focus-visible::after {
@@ -302,6 +310,17 @@ body {
      glyph paints over the end of a long first line (or struck completed text) on the 375px target. */
   .todo-editable {
     padding-right: 22px;
+  }
+  /* Touch has no hover/:focus-visible tint to fall back on, so the title's cue is the ONLY edit
+     signal a description line would otherwise get. Restore a FAINT description pencil here (touch
+     only) — quieter than the title's (0.25 vs 0.4) so the title stays the primary cue — so
+     direct-tap-to-edit-the-description stays discoverable on the mobile-first target. `content: ''`
+     regenerates the pseudo-element (the base .todo-editable::after mask/geometry still apply); the
+     22px corner reserve is inherited from .todo-editable above. Desktop keeps the single title cue
+     (outside this media query the pencil stays suppressed via `content: none`). */
+  .todo-editable--no-cue::after {
+    content: '';
+    opacity: 0.25;
   }
 }
 

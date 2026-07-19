@@ -281,7 +281,12 @@ export function TodoRow({ todo }: { todo: Todo }) {
                     ref={descriptionRef}
                     role="button"
                     tabIndex={0}
-                    className="todo-editable"
+                    // Single edit affordance (2026-07-20 UI consolidation): the description stays
+                    // editable/clickable + keeps the hover/focus tint, but `--no-cue` suppresses its
+                    // decorative ::after pencil on hover devices so ONE pencil (the title's) advertises
+                    // edit per row. On TOUCH (no hover/focus tint to fall back on) a fainter description
+                    // pencil is restored in globals.css so direct-tap-to-edit stays discoverable.
+                    className="todo-editable todo-editable--no-cue"
                     onClick={() => enterEdit('description')}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
