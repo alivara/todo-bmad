@@ -148,3 +148,69 @@ body {
   background: var(--accent-soft);
   outline: none;
 }
+
+/*
+ * Skeleton shimmer (Story 3.2). The loading state's placeholders sweep a soft highlight across
+ * a token-derived gradient so it adapts to both palettes: accent-soft is the resting tint and
+ * surface-raised the passing highlight — no untokenized hex. The sweep animates background-position
+ * across an oversized background, ~1.6s, so the highlight travels the placeholder. This DECORATES
+ * the skeleton; the role="status" caption carries the announcement and the placeholders are
+ * aria-hidden.
+ */
+@keyframes shimmer {
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -30% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--accent-soft) 20%,
+    var(--surface-raised) 40%,
+    var(--accent-soft) 60%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/*
+ * Reduced-motion guard (mirrors .check-pop): honor the OS preference by cutting the sweep to a
+ * static accent-soft placeholder. Motion never gates — the skeleton still communicates loading.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+    background: var(--accent-soft);
+  }
+}
+
+/*
+ * Edit-discoverability tint (Story 3.2, resolving the deferred 2.2 gap). The tappable title /
+ * description text gets an accent-soft wash on hover / :focus-visible — a discoverable desktop cue
+ * that inline styles can't express (no :hover). Mirrors the .todo-delete pattern; @media (hover:hover)
+ * gates the hover half so touch (no hover) isn't stuck in the tinted state. The rounding keeps the
+ * wash inside the text box; it doesn't disturb the 2-line clamp/fade or the completed strikethrough.
+ */
+.todo-editable {
+  border-radius: var(--radius-sm);
+  cursor: text;
+  transition: background 150ms ease;
+}
+
+@media (hover: hover) {
+  .todo-editable:hover {
+    background: var(--accent-soft);
+  }
+}
+
+.todo-editable:focus-visible {
+  background: var(--accent-soft);
+  /* A real, high-contrast focus ring — the accent-soft wash alone is ~1.4:1 and fails WCAG
+     2.4.11 (which axe can't test). Keyboard users must see which editable text is focused. */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

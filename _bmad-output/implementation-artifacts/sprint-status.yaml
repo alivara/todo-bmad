@@ -72,7 +72,7 @@ development_status:
   epic-3: in-progress
   # story/3-1-unified-error-contract-systematized-rollback → done (PR #20 merged, CI green) on 2026-07-19
   3-1-unified-error-contract-systematized-rollback: done
-  3-2-polished-loading-empty-error-states: backlog
+  3-2-polished-loading-empty-error-states: review
   3-3-progressive-character-limit-feedback: backlog
   3-4-warm-dark-theme-toggle: backlog
   3-5-responsive-polish-voice-accessibility-floor: backlog

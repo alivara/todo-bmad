@@ -17,16 +17,34 @@ export function EmptyState() {
       <div
         aria-hidden="true"
         style={{
-          width: 64,
-          height: 64,
-          borderRadius: 'var(--radius-full)',
-          background: 'var(--accent-soft)',
+          position: 'relative',
+          width: 84,
+          height: 84,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
+        {/* The softened accent-soft ring sits behind the glyph (opacity ~0.5) so the field reads as a
+            gentle wash while the accent check itself stays crisp. */}
+        <span
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--accent-soft)',
+            opacity: 0.5,
+          }}
+        />
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth="2"
+          style={{ position: 'relative' }}
+        >
           <circle cx="12" cy="12" r="9" />
           <path d="M8 12.5l2.5 2.5L16 9.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

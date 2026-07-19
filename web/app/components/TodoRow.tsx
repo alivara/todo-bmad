@@ -264,6 +264,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
             <p
               role="button"
               tabIndex={0}
+              className="todo-editable"
               onClick={() => enterEdit('title')}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -271,7 +272,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
                   enterEdit('title');
                 }
               }}
-              style={{ ...titleStyle, ...editableTextStyle, ...(isCompleted ? completedTextStyle : null) }}
+              style={{ ...titleStyle, ...(isCompleted ? completedTextStyle : null) }}
             >
               {todo.title}
             </p>
@@ -283,6 +284,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
                     ref={descriptionRef}
                     role="button"
                     tabIndex={0}
+                    className="todo-editable"
                     onClick={() => enterEdit('description')}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -292,7 +294,6 @@ export function TodoRow({ todo }: { todo: Todo }) {
                     }}
                     style={{
                       ...descriptionStyle,
-                      ...editableTextStyle,
                       ...(isCompleted ? completedTextStyle : null),
                       ...(collapsed ? clampStyle : null),
                     }}
@@ -577,11 +578,6 @@ const rowRetryButtonStyle: CSSProperties = {
   fontWeight: 600,
   color: 'var(--accent)',
   cursor: 'pointer',
-};
-
-// Display text (title/description) is tappable to enter edit-in-place — a text caret cues it.
-const editableTextStyle: CSSProperties = {
-  cursor: 'text',
 };
 
 // The inline editor container, laid out as a stacked column within the row content.

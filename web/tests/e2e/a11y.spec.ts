@@ -84,6 +84,40 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     assertNoNonContrast('empty-state', violations);
   });
 
+  test('a11y-004 loading skeleton state', async ({ page }) => {
+    // Hold the list GET open so the skeleton-shimmer loading state stays on screen for the scan
+    // (network-first: route BEFORE goto). A gate promise keeps the request pending; released in
+    // finally so teardown stays clean regardless of the assertion outcome.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/todos', async (route) => {
+      if (route.request().method() === 'GET') {
+        await gate; // keep pending → the skeleton (never a blank frame) stays visible
+        await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      } else {
+        await route.continue();
+      }
+    });
+
+    try {
+      await page.goto('/');
+      // The skeleton's role="status" caption is on screen while the list request is in flight.
+      await expect(page.getByText('Getting your tasks…')).toBeVisible();
+
+      const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
+      assertNoNonContrast('loading-skeleton', violations);
+
+      // Release inside the test window and let the skeleton resolve to content (the held GET
+      // returns []), so route.fulfill completes before teardown (no "Target closed" race noise).
+      release();
+      await expect(page.getByText('Nothing here yet')).toBeVisible();
+    } finally {
+      release(); // idempotent safety if an assertion above threw before the release
+    }
+  });
+
   test('a11y-003 inline edit-in-place editor open', async ({ page, request }) => {
     await request.post('/api/todos', {
       data: { title: 'Edit me for a11y', description: 'a description to edit' },

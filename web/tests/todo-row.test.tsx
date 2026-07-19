@@ -157,6 +157,18 @@ describe('TodoRow', () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ status: 'active' });
   });
 
+  // Story 3.2 — edit-discoverability: the tappable title/description text carries the
+  // `.todo-editable` class that drives the hover/:focus-visible accent-soft tint (globals.css),
+  // while staying a focusable role="button" control (the caret + tint cue edit-in-place).
+  it('marks the editable title and description with the .todo-editable class', () => {
+    renderRow(makeTodo({ title: 'Email Sam the Q3 numbers', description: 'Attach the deck' }));
+
+    const title = screen.getByRole('button', { name: 'Email Sam the Q3 numbers' });
+    expect(title).toHaveClass('todo-editable');
+    const description = screen.getByRole('button', { name: 'Attach the deck' });
+    expect(description).toHaveClass('todo-editable');
+  });
+
   // Story 2.2 — inline edit-in-place.
 
   // AC: tapping the title turns the row into an inline editor with the title field seeded, the
