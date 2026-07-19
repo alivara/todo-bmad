@@ -82,5 +82,6 @@ development_status:
   4-1-ci-fast-lane-quality-gate-unit-tests: done
   # story/4-2-ci-integration-e2e-lane-health-gated → done (PR #16 merged to main, CI green) on 2026-07-19
   4-2-ci-integration-e2e-lane-health-gated: done
-  4-3-merge-protection-status-surface-docs: backlog
+  # story/4-3-merge-protection-status-surface-docs → review (human gates PR/merge) on 2026-07-19
+  4-3-merge-protection-status-surface-docs: review
   epic-4-retrospective: optional
