@@ -75,7 +75,7 @@ development_status:
   3-2-polished-loading-empty-error-states: done
   3-3-progressive-character-limit-feedback: done
   3-4-warm-dark-theme-toggle: done
-  3-5-responsive-polish-voice-accessibility-floor: in-progress
+  3-5-responsive-polish-voice-accessibility-floor: review
   epic-3-retrospective: optional
 
   # Epic 4: Continuous Integration & Quality Gate  (prioritized: run next)

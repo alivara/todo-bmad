@@ -2,7 +2,7 @@
 title: 'Responsive polish, voice & accessibility floor'
 type: 'feature'
 created: '2026-07-19'
-status: 'ready-for-dev'
+status: 'review'
 baseline_revision: '7985b69'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -110,3 +110,11 @@ warnings:
 
 **Manual checks:**
 - `docker compose up`: body copy + completed rows + the Add label read clearly in BOTH themes (warm, not grey); Tab through every control → a visible accent ring on each; hover/focus an editable → a faint ✎; on a touch viewport the ✎ is persistently faint; resize 375px→desktop → no horizontal scroll; view-source/devtools → CSP + security headers on `/` and `/api/*`, and the theme still applies with no flash.
+
+## Auto Run Result
+
+Status: **review** (ready for human PR review).
+
+- **Implemented:** contrast fixed to WCAG AA in BOTH themes (light `--ink-secondary` #6b6252, `--accent` #b0512f, new `--accent-strong`; completed-row text rerouted to `--ink-secondary` with the text-dimming opacity removed) + `color-contrast` flipped to a HARD axe gate across all 5 states/both themes; decorative edit ✎ cue (hover/focus + persistent touch); CSP + security headers (script-src keeps `'unsafe-inline'` for the 3.4 theme script); React-escaping regression test; visible accent focus ring on every control + add-input glow moved to `:focus-visible`; explicit viewport + per-scheme themeColor; reduced-motion guard completed; deferred-work updated (shipped / still-deferred).
+- **Review (Pixel — web slice):** no HIGH. Independently recomputed every contrast pair (all clear AA on every surface, both themes) and verified the gate flip against the committed baseline axe artifacts (the exact flagged-node set now clears), and confirmed the CSP does not break the inline theme script. Fixed: **MEDIUM** — untracked+gitignored the stale generated axe JSON dumps (the lane overwrites them; they misrepresented the fix); **LOW×3** — `.todo-delete` gets the 2px accent focus outline like the others, reserved the touch corner so the persistent ✎ never overlaps text at 375px, and completed the reduced-motion guard for the ✎ fade. `--ink-muted` checkbox-ring 1.4.11 non-text ratio recorded as a documented residual (axe doesn't test it).
+- **Gates:** `test:unit` 109/109, `lint`, `format:check` green. The hard contrast gate + security-headers spec run live in the CI `integration-e2e` lane.
