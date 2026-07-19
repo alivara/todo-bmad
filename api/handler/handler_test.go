@@ -35,6 +35,8 @@ type stubService struct {
 	// deleteErr forces the DeleteTodo failure path; lastDeleteID captures the forwarded id.
 	deleteErr    error
 	lastDeleteID string
+	// listPanics makes ListTodos panic, to exercise the CustomRecovery → AD-9 envelope path.
+	listPanics bool
 }
 
 type createArgs struct{ title, description string }
@@ -44,8 +46,13 @@ type updateArgs struct {
 	title, description, stat *string
 }
 
-func (s stubService) ListTodos(_ context.Context) ([]model.Todo, error) { return s.todos, s.listErr }
-func (s stubService) Health(_ context.Context) error                    { return s.healthErr }
+func (s stubService) ListTodos(_ context.Context) ([]model.Todo, error) {
+	if s.listPanics {
+		panic("boom in ListTodos")
+	}
+	return s.todos, s.listErr
+}
+func (s stubService) Health(_ context.Context) error { return s.healthErr }
 
 func (s *stubService) CreateTodo(_ context.Context, title, description string) (model.Todo, error) {
 	s.lastCreate = &createArgs{title: title, description: description}
@@ -184,6 +191,59 @@ func TestHealth_Unavailable(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+}
+
+// AC1: an unmatched route must return the AD-9 404 envelope as JSON, never Gin's plaintext 404.
+// With HandleMethodNotAllowed off, a wrong method on an existing path falls through here too.
+func TestNoRoute_UnmatchedIs404Envelope(t *testing.T) {
+	rec := doGET(t, &stubService{}, "/todoss")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v — body was not JSON (Gin plaintext 404 leaked?)", err)
+	}
+	if apiErr.Error.Code != model.CodeNotFound {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeNotFound)
+	}
+}
+
+// A panic anywhere below the handler must be recovered AND returned as the AD-9 envelope, not
+// Gin's default bodyless 500 (AC1: every non-2xx is enveloped). [review F1]
+func TestPanic_RecoveredAsInternalErrorEnvelope(t *testing.T) {
+	rec := doGET(t, &stubService{listPanics: true}, "/todos")
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v — body was not JSON (bare bodyless 500 leaked?)", err)
+	}
+	if apiErr.Error.Code != model.CodeInternalError {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeInternalError)
+	}
+}
+
+// With HandleMethodNotAllowed off (default), a wrong method on an existing path also falls through
+// to NoRoute → the AD-9 404 envelope (locks in the claim the NoRoute comment makes). [review F2]
+func TestNoRoute_WrongMethodIs404Envelope(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/todos", nil)
+	NewRouter(&stubService{}).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v — body was not JSON", err)
+	}
+	if apiErr.Error.Code != model.CodeNotFound {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeNotFound)
 	}
 }
 

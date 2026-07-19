@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Todo, UpdateTodoRequest } from '@shared/todo';
 import { updateTodo, todosQueryKey } from './todos';
+import { makeOnSettled, rollbackById, swapById } from './optimistic';
 
 // Scopes isMutating()/the mutation cache to field-edits, so onSettled can tell whether any
 // OTHER edit is still in flight before it reconciles (see onSettled below). Mirrors
@@ -49,33 +50,27 @@ export function useUpdateTodo() {
       return { id, prevTitle: prev?.title ?? '', prevDescription: prev?.description ?? '' };
     },
 
-    // Visible rollback (AC5): restore ONLY this row's prior title + description by id. A
-    // whole-list snapshot restore would clobber a concurrent sibling edit that already settled;
-    // id-scoped restore leaves siblings intact. onSettled then reconciles against the server.
+    // Visible rollback (AC5): restore ONLY this row's prior title + description by id (rollbackById
+    // is id-scoped). A whole-list snapshot restore would clobber a concurrent sibling edit that
+    // already settled; id-scoped restore leaves siblings intact. onSettled then reconciles.
     onError: (_err, _input, ctx) => {
       if (!ctx) return;
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).map((t) =>
-          t.id === ctx.id ? { ...t, title: ctx.prevTitle, description: ctx.prevDescription } : t,
-        ),
-      );
+      rollbackById(queryClient, todosQueryKey, ctx.id, {
+        title: ctx.prevTitle,
+        description: ctx.prevDescription,
+      });
     },
 
     // Swap the optimistic row for the server resource by id (adopting the server's bumped
     // updatedAt) — AD-7 identity/timestamp handoff.
     onSuccess: (server, _input, ctx) => {
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).map((t) => (t.id === ctx?.id ? server : t)),
-      );
+      if (!ctx) return;
+      swapById(queryClient, todosQueryKey, ctx.id, server);
     },
 
-    // Reconciliation backstop: after the LAST in-flight edit settles, refetch so the cache
-    // equals server truth. Gated on isMutating === 1 (the settling mutation still counts as 1)
-    // so an early refetch during a concurrent edit can't transiently drop a pending change.
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: updateTodoMutationKey }) === 1) {
-        void queryClient.invalidateQueries({ queryKey: todosQueryKey });
-      }
-    },
+    // Reconciliation backstop: after the LAST in-flight edit settles, refetch so the cache equals
+    // server truth. The shared makeOnSettled applies the gated invalidate (isMutating === 1) so an
+    // early refetch during a concurrent edit can't transiently drop a pending change.
+    onSettled: makeOnSettled(queryClient, updateTodoMutationKey, todosQueryKey),
   });
 }

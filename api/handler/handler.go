@@ -45,13 +45,29 @@ type updateTodoRequest struct {
 // NewRouter builds the Gin engine with all api routes registered.
 func NewRouter(svc TodoService) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Recovery())
+	// Custom recovery so a panic (nil deref, driver panic, …) is caught AND returned as the AD-9
+	// envelope — Gin's default Recovery aborts with a bare, bodyless 500 that escapes the uniform
+	// error contract (AC1: EVERY non-2xx is enveloped). The process stays up; the panic is logged.
+	r.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
+		slog.Error("panic recovered", "error", err, "path", c.Request.URL.Path)
+		c.AbortWithStatusJSON(http.StatusInternalServerError,
+			model.NewAPIError(model.CodeInternalError, "internal error"))
+	}))
 
 	r.GET("/health", health(svc))
 	r.GET("/todos", listTodos(svc))
 	r.POST("/todos", createTodo(svc))
 	r.PATCH("/todos/:id", updateTodo(svc))
 	r.DELETE("/todos/:id", deleteTodo(svc))
+
+	// AC1 gap: an unmatched path would otherwise return Gin's plaintext 404, escaping the AD-9
+	// envelope. NoRoute keeps every non-2xx inside the uniform { error: { code, message } } shape.
+	// With HandleMethodNotAllowed off (the default), a wrong method on an existing path also falls
+	// through here, so this one handler covers unmatched-path AND wrong-method (405 is out of scope
+	// — the vocab has no 405 code).
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, model.NewAPIError(model.CodeNotFound, "route not found"))
+	})
 
 	return r
 }

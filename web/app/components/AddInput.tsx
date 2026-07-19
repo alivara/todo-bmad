@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useCreateTodo } from '@/lib/useCreateTodo';
+import { is4xx, inline4xxText } from '@/lib/apiError';
 
 // Client mirror of the server cap (AD-10). Counted in Unicode code points — see codePoints.
 const MAX_TITLE = 200;
@@ -76,11 +77,29 @@ export function AddInput() {
       <button type="submit" aria-label="Add" style={buttonStyle}>
         Add
       </button>
-      {create.isError && (
-        <p role="alert" style={errorStyle}>
-          Something got in the way. Try again.
-        </p>
-      )}
+      {create.isError &&
+        (is4xx(create.error) ? (
+          // 4xx = the user's input (a client/server validation mirror drift, AD-10). Inline the
+          // server's user-facing message; retrying malformed input is futile → NO retry control.
+          <p role="alert" style={errorStyle}>
+            {inline4xxText(create.error)}
+          </p>
+        ) : (
+          // 5xx / network / timeout = our fault. Sanctioned copy + a Try-again that re-fires the
+          // same add (TanStack retains the last variables, so it works even though the field cleared).
+          <div role="alert" style={errorStyle}>
+            <span>Something got in the way. </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (create.variables) create.mutate(create.variables);
+              }}
+              style={retryButtonStyle}
+            >
+              Try again
+            </button>
+          </div>
+        ))}
     </form>
   );
 }
@@ -123,4 +142,17 @@ const errorStyle: CSSProperties = {
   margin: 0,
   color: 'var(--ink-secondary)',
   fontSize: 13,
+};
+
+// The inline Try-again affordance for the 5xx/network class: an accent-colored text button (no
+// status codes / jargon / alarm-red — the voice rule). Reused across the mutation surfaces.
+const retryButtonStyle: CSSProperties = {
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--accent)',
+  cursor: 'pointer',
 };
