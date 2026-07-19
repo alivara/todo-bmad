@@ -1,0 +1,52 @@
+# Team overrides for bmad-dev-auto (committed).
+# Merge rules (see the skill's customize.toml): strings replace the default,
+# lists append to the default list, tables merge key by key.
+#
+# Two overrides:
+#   1. Expert-reviewer swap  — Review step uses Gopher/Pixel, not the generic hunters.
+#   2. sprint-status sync     — HALT syncs sprint-status.yaml (bmad-dev-auto omits this).
+
+[workflow]
+
+# --- 1. Expert-reviewer swap (Review step) -------------------------------------
+# Carried as a persistent fact for the whole run, so the Review step honors it in
+# place of "Launch Blind Hunter and Edge Case Hunter". Appends to the base facts.
+persistent_facts = [
+  """
+REVIEW OVERRIDE — use domain-expert reviewers instead of the generic Blind Hunter + Edge Case Hunter.
+In the Review step, dispatch reviewers by the slice each change touches, in parallel (blocking subagents, awaited together in one turn):
+  - Go / api changes  -> GOPHER: invoke the `agent-go-engineer` skill and adversarially review the Go diff.
+  - web / frontend (TS/React/Next) changes -> PIXEL: invoke the `agent-frontend-engineer` skill and adversarially review the web diff.
+Each expert MUST cover all three lenses the generic layers would (general adversarial correctness/security; edge cases/boundaries; acceptance vs the spec ACs + project-context AD-rules) and return findings as a list: title, severity estimate, file:line, evidence, concrete failure scenario, suggested fix.
+Slice routing: a web-only story runs PIXEL (and may use GOPHER only to verify a backend-contract claim the story relies on); a Go-only story runs GOPHER; a story touching both runs BOTH. If a subagent returns empty or dies, re-run it once, then proceed with whatever completed.
+Keep everything else in the Review step UNCHANGED — the Classify step, final severity re-judgement, the intent_gap/bad_spec/patch/defer/reject triage, the cascading loopback, and the Review Triage Log all apply exactly as written. Only the SOURCE of the raw findings changes.
+""",
+]
+
+# --- 2. sprint-status sync (runs at HALT, after Finalize) ----------------------
+# Replaces the empty default. HALT runs this as the final terminal instruction.
+on_complete = """
+Sync BMAD sprint tracking to this run's outcome (bmad-dev-auto does not do this itself):
+
+1. Derive the story key from {spec_file}: the kebab slug between `spec-` and `.md`
+   (e.g. `spec-1-3-view-the-persistent-task-list.md` -> `1-3-view-the-persistent-task-list`).
+   If the spec is a freeform (non-epic-story) spec with no matching sprint key, skip this
+   sync and say so — do not force a match.
+
+2. Open {implementation_artifacts}/sprint-status.yaml and find the `development_status:`
+   entry whose key equals the story key.
+
+3. Map this run's terminal status to a sprint value:
+     - done    -> review        (the automated loop finished; a HUMAN still gates the PR/merge,
+                                  so do NOT set `done` here)
+     - blocked -> in-progress    (append a one-line note with the blocking condition)
+   If the key is not found, WARN that sprint sync was skipped (key absent) and never invent an entry.
+
+4. Update the matched entry, set the file's top-level `last_updated` to today's date, and
+   preserve ALL comments and structure (including the STATUS DEFINITIONS header).
+
+5. If the Finalize step made a commit that has NOT been pushed (bmad-dev-auto never pushes),
+   stage sprint-status.yaml and fold it in with `git commit --amend --no-edit` so the tree
+   stays clean; otherwise leave it staged and note it. This is a metadata-only sync — do not
+   touch code, re-run gates, or change the spec's terminal status.
+"""
