@@ -30,6 +30,7 @@ web/next-env.d.ts
 web/coverage/
 web/playwright-report/
 web/test-results/
+web/*.tsbuildinfo
 
 # --- api (Go) ---
 api/bin/
