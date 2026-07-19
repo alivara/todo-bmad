@@ -9,6 +9,11 @@
  */
 
 :root {
+  /* UA color-scheme hint (Story 3.4): keeps the browser-rendered chrome (scrollbars, form
+     canvas, the pre-paint canvas) in step with the active palette — so warm-dark never shows a
+     cold light scrollbar or a white canvas flash. Overridden in the dark seam below. */
+  color-scheme: light;
+
   /* --- Light palette (active by default) --- */
   --surface-base: #f5efe6;
   --surface-raised: #fffcf7;
@@ -58,6 +63,7 @@
  * wires the header toggle + RD-6 first-load logic that stamps this attribute.
  */
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --surface-base: var(--surface-base-dark);
   --surface-raised: var(--surface-raised-dark);
   --ink-primary: var(--ink-primary-dark);
@@ -256,6 +262,10 @@ body {
  * SVGs are always in the DOM — CSS alone decides which is visible, so the toggle needs no React
  * theme state.
  */
+.theme-toggle .icon-sun {
+  display: inline-flex;
+}
+
 .theme-toggle .icon-moon {
   display: none;
 }
