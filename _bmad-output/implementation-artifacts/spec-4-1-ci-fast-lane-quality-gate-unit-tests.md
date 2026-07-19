@@ -93,6 +93,16 @@ Reviewers (per REVIEW OVERRIDE): GOPHER (agent-go-engineer) on the api job; PIXE
   - `[low]` `[patch]` `go-version: '1.26'` duplicated `api/go.mod` (drift risk). Switched to `go-version-file: api/go.mod` (single source of truth).
   - `[low]` `[patch]` Redundant `working-directory: api` on the gofmt step (job default already applies). Removed for consistency.
 
+### 2026-07-19 — Review pass 2 (surfaced by the real CI run on PR #11)
+The first PR CI run made the api job fail fast — verification that only an actual Actions run could provide (the flagged residual risk materialized).
+- intent_gap: 0
+- bad_spec: 0
+- patch: 1: (high 1)
+- defer: 0
+- reject: 0
+- addressed_findings:
+  - `[high]` `[patch]` golangci-lint refused to run: "the Go language version (go1.24) used to build golangci-lint is lower than the targeted Go version (1.26)". No prebuilt golangci-lint release is yet built with Go ≥1.26 (latest v2.12.2 is built with Go 1.25), so `install-mode: binary` cannot satisfy a module targeting Go 1.26. Fixed by pinning `version: v2.12.2` with `install-mode: goinstall`, so the action compiles golangci-lint from source using the setup-go Go 1.26 toolchain — the binary's embedded build-Go version then satisfies the check. Workflow-only change; `api/go.mod` (go 1.26) left untouched.
+
 ## Design Notes
 
 gofmt diff check (no wrapper target exists), run in `api/`:

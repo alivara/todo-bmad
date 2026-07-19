@@ -70,7 +70,11 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: v2.12.2
+          # Build golangci-lint from source with the setup-go toolchain (Go 1.26) so its
+          # embedded build-Go version is >= the module's targeted Go (go.mod: go 1.26).
+          # Prebuilt release binaries currently lag (built with Go 1.25) and refuse to run.
+          install-mode: goinstall
           working-directory: api
 
       - name: Unit tests (go test)
