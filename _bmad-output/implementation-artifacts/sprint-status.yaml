@@ -55,6 +55,8 @@ development_status:
   # Epic 1: Foundation & Task Capture
   epic-1: done
   1-1-project-skeleton-one-command-startup: done
+  # AC amended post-done: optional description-on-create (PRD FR1 conformance) via correct-course →
+  # sprint-change-proposal-2026-07-19-create-description.md; shipped in PR #27 on 2026-07-20
   1-2-create-a-todo-optimistic-end-to-end: done
   1-3-view-the-persistent-task-list: done
   # Epic 1 retrospective completed 2026-07-19 → epic-1-retro-2026-07-19.md
