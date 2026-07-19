@@ -185,6 +185,12 @@ The app feels finished and never hides a failure — upgrading Epic 1's minimal 
 **Anchors:** AR3 (proxy error synthesis), AR9 (uniform error contract + client 4xx/5xx split), AR14 (React error boundary + structured logging) · NFR2, NFR4, NFR5, NFR9, NFR10 · UX-DR6 (char counter), UX-DR12 (theme toggle — consumes Epic 1 tokens), UX-DR13 (placeholder avatar), UX-DR14 (skeleton shimmer), UX-DR16 (error illustration), UX-DR23 (char feedback), UX-DR24 (no gestures), UX-DR26 (voice), UX-DR27 + UX-DR28 (a11y floor + deferred)
 **Test-design tasks (from risk review 2026-07-17):** the systematized optimistic-rollback story is the **top risk (R1, re-scored 9)** — elevate to **P0 must-pass** with acceptance criteria: (1) every mutating action (add/edit/toggle/delete) rolls back **visibly** on server rejection; (2) a post-rollback refetch equals server truth — **no silent divergence** (CM2); (3) implemented via **one reusable optimistic-mutation wrapper** (`onMutate` snapshot + `onError` restore) shared by all four paths, not four hand-rolled rollbacks. Gate any `prefers-reduced-motion` scenario on PRD **OQ3**.
 
+### Epic 4: Continuous Integration & Quality Gate
+Every push and pull request is automatically verified by a GitHub Actions pipeline that runs the committed quality gate and the full test suite — operationalizing the "CI-checkable" quality gate (AR15/NFR6) and the spine's `GET /health`-driven CI E2E gating. A fast lane (lint/format + unit tests) gives quick signal; a health-gated integration/E2E lane runs the api integration tests and Playwright E2E against the `docker-compose.test.yml` (testseed) stack. Triggered on pull_request and on push to `main`; a red pipeline blocks merge. No product code changes — this wires existing, already-passing scripts into automation and makes green CI the precondition for every future story in Epics 2 and 3.
+**FRs covered:** none (infrastructure/quality epic) — enforces NFR6
+**Anchors:** AR15 (eslint+prettier / gofmt+golangci-lint, CI-checkable) · NFR6 (clean, linted, passing) · GET /health CI E2E gating (spine) · reuses docker-compose.test.yml [TC1 reset seam] and GET /health [TC5]
+**Priority note:** Sequenced to run NEXT (before Epic 2 dev resumes) so the regression net exists before more mutation paths (Epics 2–3) are built.
+
 ## Epic 1: Foundation & Task Capture
 
 A running, demoable walking skeleton — greenfield monorepo scaffold, fixed wire contract, design-token system (light + warm-dark values), migrations-on-boot, and one-command `docker compose up` — then create + view optimistically against durable PostgreSQL, with a minimal resilience floor (add-path rollback, basic loading/empty/error) so Epic 1 is honestly usable.
@@ -491,3 +497,83 @@ So that the app feels trustworthy and consistent everywhere.
 **Given** the deferred accessibility scope
 **When** the v1 floor ships
 **Then** deferred items (full screen-reader labeling, `aria-live` for completion/pending-delete/undo, complete keyboard traversal + focus-order, verified WCAG ratios, `prefers-reduced-motion` handling) are documented as future hardening — flagged, not pretended done
+
+## Epic 4: Continuous Integration & Quality Gate
+
+Automate the already-committed quality gate and test suite on GitHub Actions so every pull request and every push to main is verified without manual steps — a green pipeline becomes the precondition for merge. Reuses existing scripts and the test compose profile verbatim; introduces no new test infrastructure and no product code change.
+
+### Story 4.1: CI fast lane — quality gate + unit tests
+
+As a developer,
+I want lint/format and unit tests to run automatically on every PR and push to main,
+So that style regressions and broken units are caught in minutes, before review.
+
+**Acceptance Criteria:**
+
+**Given** a pull request or a push to `main`
+**When** the pipeline runs
+**Then** a GitHub Actions workflow at `.github/workflows/ci.yml` triggers on `pull_request` and on `push` to `main`
+
+**Given** the fast-lane job
+**When** it runs the quality gate
+**Then** it runs, and fails on any violation of: `eslint` + `prettier --check` in `web` and `gofmt` (diff check) + `golangci-lint` in `api` (AR15/NFR6)
+
+**Given** the fast-lane job
+**When** it runs unit tests
+**Then** `web` Vitest (`npm run test:unit`) and `api` Go unit tests (`go test ./...`) both run and must pass; a non-zero exit fails the job
+
+**Given** dependency setup
+**When** the job initializes
+**Then** Node and Go toolchains match the project versions (Node for Next.js 16.2, Go 1.26) and dependency caching is enabled for reasonable run times
+
+**Given** any step fails
+**When** the workflow completes
+**Then** the overall check is reported red on the PR/commit (the merge signal is honest)
+
+### Story 4.2: CI integration & E2E lane (health-gated)
+
+As a developer,
+I want the api integration tests and the Playwright E2E suite to run against the real Dockerized stack in CI,
+So that cross-unit regressions (wire contract, optimistic flows) are caught automatically.
+
+**Acceptance Criteria:**
+
+**Given** the integration/E2E job
+**When** it starts the stack
+**Then** it brings up the app via `docker compose -f docker-compose.yml -f docker-compose.test.yml up --build` (the testseed profile compiles the `/internal/test/reset` seam, per TC1)
+
+**Given** the stack is starting
+**When** the job waits for readiness
+**Then** it gates on `GET /health` reporting migrated + serving before any test runs (no fixed sleeps; per the spine's CI E2E gating [TC5]) with a bounded timeout
+
+**Given** a ready stack
+**When** the job runs tests
+**Then** the `api` integration tests and the Playwright E2E suite (`npm run test:e2e`, at minimum the `@p0` set via `test:e2e:p0`) run and must pass
+
+**Given** the run finishes (pass or fail)
+**When** the job tears down
+**Then** the compose stack is stopped/cleaned up, and on failure the Playwright report / relevant logs are uploaded as workflow artifacts for debugging
+
+**Given** either the fast lane or this lane is red
+**When** the pipeline aggregates
+**Then** the combined CI status is red (both lanes must be green to pass)
+
+### Story 4.3: Merge protection, status surface & docs
+
+As a maintainer,
+I want CI to be the enforced gate for merging and its status visible in the README,
+So that no unverified change reaches main and contributors know the workflow.
+
+**Acceptance Criteria:**
+
+**Given** the repository
+**When** CI is established
+**Then** the required status checks for merging into `main` are documented (branch-protection settings: PRs must be green to merge) in the README/CONTRIBUTING note
+
+**Given** the README
+**When** a reader opens it
+**Then** a CI status badge for the workflow is shown and a short "Continuous Integration" section explains what runs on push/PR and how to run the same checks locally (the exact `npm run` / `go test` / compose commands CI uses)
+
+**Given** NFR7 (clone→run ≤10 min, no undocumented steps)
+**When** a new developer reads the docs
+**Then** the CI story adds no manual local setup step — the documented local commands are the same ones CI invokes, keeping local and CI behavior consistent

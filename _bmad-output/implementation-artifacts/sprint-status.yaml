@@ -42,6 +42,7 @@
 
 generated: 2026-07-17
 last_updated: 2026-07-19
+# Epic 4 (CI/CD & Quality Gate) added via correct-course on 2026-07-19; prioritized to run before Epic 2 resumes
 # Story 1.3 implemented + auto-reviewed via bmad-dev-auto; PR #4 merged → done on 2026-07-19
 project: todo-app
 # Story 1.1 created (ready-for-dev), epic-1 → in-progress on 2026-07-17
@@ -73,3 +74,10 @@ development_status:
   3-4-warm-dark-theme-toggle: backlog
   3-5-responsive-polish-voice-accessibility-floor: backlog
   epic-3-retrospective: optional
+
+  # Epic 4: Continuous Integration & Quality Gate  (prioritized: run next)
+  epic-4: backlog
+  4-1-ci-fast-lane-quality-gate-unit-tests: backlog
+  4-2-ci-integration-e2e-lane-health-gated: backlog
+  4-3-merge-protection-status-surface-docs: backlog
+  epic-4-retrospective: optional
