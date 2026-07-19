@@ -9,7 +9,7 @@ import "time"
 // wire concerns: timestamps are native time.Time, not pre-formatted strings, and there
 // is no `metadata` nesting or json tags here. The AD-6 wire shape (camelCase, metadata
 // nesting, RFC3339-Z formatting) is produced by the serializer at the HTTP boundary
-// (see backend/handler/wire.go), keeping the domain model decoupled from the wire.
+// (see api/handler/wire.go), keeping the domain model decoupled from the wire.
 type Todo struct {
 	ID          string
 	Title       string

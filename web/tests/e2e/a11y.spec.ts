@@ -93,6 +93,14 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     await page.getByRole('button', { name: /toggle theme/i }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
+    // The card surface has a 350ms `background` transition; scanning mid-fade would read an
+    // intermediate light-ish surface under the dark text (a transient, not a real violation).
+    // Snap all transitions/animations to their settled value so axe audits the STABLE warm-dark
+    // presentation — WCAG contrast is a property of the settled state.
+    await page.addStyleTag({
+      content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
+    });
+
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
     assertNoViolations('populated-dark', violations);
   });
