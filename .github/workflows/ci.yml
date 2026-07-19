@@ -123,8 +123,10 @@ jobs:
         run: npm ci
         working-directory: web
 
-      - name: Install Playwright browser (chromium)
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers (chromium + webkit)
+        # chromium = `e2e` (Desktop Chrome); webkit = `e2e-mobile` (devices['iPhone SE']
+        # defaults to WebKit). Both are required or the e2e-mobile project fails to launch.
+        run: npx playwright install --with-deps chromium webkit
         working-directory: web
 
       - name: Bring up stack (testseed profile)
