@@ -85,4 +85,5 @@ development_status:
   4-2-ci-integration-e2e-lane-health-gated: done
   # story/4-3-merge-protection-status-surface-docs → done (PR #19 merged to main, CI green) on 2026-07-19
   4-3-merge-protection-status-surface-docs: done
-  epic-4-retrospective: optional
+  # Epic 4 retrospective completed 2026-07-19 → epic-4-retro-2026-07-19.md (no action items opened)
+  epic-4-retrospective: done
