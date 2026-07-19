@@ -33,6 +33,11 @@ type Repository interface {
 	// no-op that returns the current row. A missing id yields model.NotFoundError. Interface
 	// stays clean — no owner/scope param (AD-2).
 	UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error)
+	// DeleteTodo hard-deletes the todo by id (AD-5 — the pending/undo lifecycle is entirely
+	// client-side; the server does a plain parameterized DELETE and never knows a delete was
+	// "pending"). A missing id yields model.NotFoundError (404, not 500). No soft-delete /
+	// deleted_at column (Never). Interface stays clean — no owner/scope param (AD-2).
+	DeleteTodo(ctx context.Context, id string) error
 	// Ping verifies the datastore is reachable (drives readiness at GET /health).
 	Ping(ctx context.Context) error
 }
@@ -161,7 +166,22 @@ func (p *Postgres) UpdateTodo(ctx context.Context, id string, title, description
 	return t, nil
 }
 
-// todoByIDErr translates a QueryRow error on a by-id todo operation into a domain error:
+// DeleteTodo implements Repository. It hard-deletes the row via a parameterized DELETE (AD-10) —
+// no soft-delete, no schema change (AD-5 keeps the pending/undo lifecycle entirely client-side).
+// A malformed (non-uuid) id surfaces as a 22P02 from Postgres, mapped by todoByIDErr to
+// NotFoundError. A well-formed but absent id affects zero rows → NotFoundError (404, not 500).
+func (p *Postgres) DeleteTodo(ctx context.Context, id string) error {
+	tag, err := p.pool.Exec(ctx, "DELETE FROM todos WHERE id = $1", id)
+	if err != nil {
+		return todoByIDErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return model.NotFoundError{Message: "todo not found"}
+	}
+	return nil
+}
+
+// todoByIDErr translates an error on a by-id todo operation into a domain error:
 // ErrNoRows (absent id) and Postgres 22P02 (a malformed, non-uuid id — which can reference no
 // resource) both become NotFoundError (404, not a 500, per AD-9); anything else is wrapped as
 // an internal error.
@@ -173,7 +193,7 @@ func todoByIDErr(err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "22P02" {
 		return model.NotFoundError{Message: "todo not found"}
 	}
-	return fmt.Errorf("update todo: %w", err)
+	return fmt.Errorf("todo by id: %w", err)
 }
 
 // Ping implements Repository.

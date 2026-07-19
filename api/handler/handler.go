@@ -21,6 +21,7 @@ type TodoService interface {
 	ListTodos(ctx context.Context) ([]model.Todo, error)
 	CreateTodo(ctx context.Context, title, description string) (model.Todo, error)
 	UpdateTodo(ctx context.Context, id string, title, description, status *string) (model.Todo, error)
+	DeleteTodo(ctx context.Context, id string) error
 	Health(ctx context.Context) error
 }
 
@@ -50,6 +51,7 @@ func NewRouter(svc TodoService) *gin.Engine {
 	r.GET("/todos", listTodos(svc))
 	r.POST("/todos", createTodo(svc))
 	r.PATCH("/todos/:id", updateTodo(svc))
+	r.DELETE("/todos/:id", deleteTodo(svc))
 
 	return r
 }
@@ -157,5 +159,30 @@ func updateTodo(svc TodoService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, toTodoResponse(updated))
+	}
+}
+
+// deleteTodo handles DELETE /todos/:id. The server does a plain hard delete (AD-5 — the
+// pending/undo window lives entirely on the client, so by the time this fires the client has
+// already committed to the delete). Read the id from the path, delegate to the service, and map
+// the result: success → 204 empty (no body); a NotFoundError (unknown/already-gone id) → 404
+// not_found (which the client treats as success, RD-5); anything else → 500 internal_error.
+func deleteTodo(svc TodoService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		err := svc.DeleteTodo(c.Request.Context(), c.Param("id"))
+		if err != nil {
+			var nfe model.NotFoundError
+			if errors.As(err, &nfe) {
+				c.JSON(http.StatusNotFound,
+					model.NewAPIError(model.CodeNotFound, nfe.Error()))
+				return
+			}
+			slog.Error("delete todo failed", "error", err)
+			c.JSON(http.StatusInternalServerError,
+				model.NewAPIError(model.CodeInternalError, "failed to delete todo"))
+			return
+		}
+
+		c.Status(http.StatusNoContent)
 	}
 }

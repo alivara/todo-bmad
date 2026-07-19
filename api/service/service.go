@@ -86,6 +86,14 @@ func (s *Service) UpdateTodo(ctx context.Context, id string, title, description,
 	return s.repo.UpdateTodo(ctx, id, title, description, status)
 }
 
+// DeleteTodo hard-deletes a todo by id (AD-5). There is no business rule to apply — the
+// pending/undo lifecycle lives entirely on the client and the server just does the delete — so
+// this is a thin passthrough. A missing id surfaces from the repository as model.NotFoundError,
+// propagated unchanged for the handler to map to 404.
+func (s *Service) DeleteTodo(ctx context.Context, id string) error {
+	return s.repo.DeleteTodo(ctx, id)
+}
+
 // validateTitle trims then applies the required + ≤200-code-point rule (AD-10). The trimmed
 // value is returned so callers persist exactly what was validated. Shared by Create + Update.
 func validateTitle(title string) (string, error) {

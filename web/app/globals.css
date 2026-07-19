@@ -122,3 +122,29 @@ body {
     animation: none;
   }
 }
+
+/*
+ * The quiet delete affordance (Story 2.3, Design Note 1). ALWAYS rendered (mobile-first at
+ * 375px has no hover, so it must be tappable without one) and a real focusable <button>. It sits
+ * quiet in --ink-secondary; on pointer devices it emphasizes to the terracotta accent over a soft
+ * wash on hover. Focus-visible gets the same emphasis so keyboard users see it. Tokens only.
+ */
+.todo-delete {
+  color: var(--ink-secondary);
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+@media (hover: hover) {
+  .todo-delete:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+}
+
+.todo-delete:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
