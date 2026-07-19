@@ -20,3 +20,15 @@
 - source_spec: `spec-1-3-view-the-persistent-task-list.md`
   summary: Completed-row text (`--ink-muted` #b8ae9e on #fffcf7 ≈ 1.9:1) is illegible, not merely de-emphasized.
   evidence: Dormant in 1.3 (no `completed` todos exist until Epic 2 activates completion). When Epic 2 lands the toggle, bump completed text to a token clearing ≥4.5:1 (or ≥3:1 if treated as deprioritized content). `web/app/components/TodoRow.tsx` completedTextStyle.
+
+## Deferred from: expert review of story-4.1 (2026-07-19, Gopher + Pixel)
+
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: The CI fast lane never compiles or lints the `testseed`-tagged code (`api/testhelpers/seed.go`, `api/testroutes_testseed.go`, `api/repository/repository_injection_test.go`), so a compile/lint break in the reset seam passes green until the Story 4.2 integration lane exists.
+  evidence: `go test ./...` runs without `-tags testseed` and golangci-lint sets no build tags — deliberate per this story's "no DB in the fast lane" scope, but a real coverage gap. When 4.2 lands (or sooner), add a cheap `go build -tags testseed ./...` compile guard or set `build-tags: testseed` for the linter. Not this story's problem.
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: `web/package.json` pins `@types/node` at `^24` while CI/runtime is Node 22 — a latent types-vs-runtime major mismatch.
+  evidence: Types-only, so it does not break the current 5 jsdom unit files, but code type-checking green against Node 24 types could reference a Node-24-only API absent at Node-22 runtime. Fix touches `web/package.json` (outside this workflow-only story): align to `@types/node@22` or move CI to Node 24.
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: No committed Node version pin — CI floats on `node-version: '22'` and there is no `.nvmrc`/`engines`, so CI and local dev can drift within the 22.x line.
+  evidence: Go is pinned via `go.mod`; Node has no in-repo source of truth. Fix touches web source/config (outside this workflow-only story): add `web/.nvmrc` (or `engines.node`) and switch the workflow to `node-version-file`.
