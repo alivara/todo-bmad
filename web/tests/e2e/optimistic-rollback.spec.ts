@@ -27,8 +27,12 @@ test.describe('@e2e @p0 optimistic rollback — add path (R1 / CM2)', () => {
     await input.fill('Email Sam the Q3 numbers');
     await input.press('Enter');
 
-    // Appears optimistically, then must disappear on failure, and an error is surfaced.
+    // Appears optimistically, then must disappear on failure, and an error is surfaced. Assert the
+    // add-error alert scoped to the <form> (AddInput): Story 3.1's 5xx surface splits the copy into
+    // a message span + a "Try again" button, so a loose getByText matches two nodes, and a bare
+    // getByRole('alert') also catches Next's empty #__next-route-announcer__ — both strict-mode
+    // violations. The form's own alert is the stable, unambiguous contract.
     await expect(page.getByText('Email Sam the Q3 numbers')).toBeHidden();
-    await expect(page.getByText(/couldn.t|try again|something got in the way/i)).toBeVisible();
+    await expect(page.locator('form').getByRole('alert')).toContainText(/something got in the way/i);
   });
 });

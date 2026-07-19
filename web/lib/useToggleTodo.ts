@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Todo, TodoStatus } from '@shared/todo';
 import { updateTodo, todosQueryKey } from './todos';
+import { makeOnSettled, rollbackById, swapById } from './optimistic';
 
 // Scopes isMutating()/the mutation cache to toggles, so onSettled can tell whether any OTHER
 // toggle is still in flight before it reconciles (see onSettled below). Mirrors createTodoMutationKey.
@@ -47,31 +48,24 @@ export function useToggleTodo() {
       return { id, prevStatus };
     },
 
-    // Visible rollback (AC6): restore ONLY this row's prior status by id. A whole-list
-    // snapshot restore would clobber a concurrent sibling toggle that already settled;
-    // id-scoped restore leaves siblings intact. onSettled then reconciles against the server.
+    // Visible rollback (AC6): restore ONLY this row's prior status by id (rollbackById is
+    // id-scoped). A whole-list snapshot restore would clobber a concurrent sibling toggle that
+    // already settled; id-scoped restore leaves siblings intact. onSettled then reconciles.
     onError: (_err, _input, ctx) => {
       if (!ctx) return;
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).map((t) => (t.id === ctx.id ? { ...t, status: ctx.prevStatus } : t)),
-      );
+      rollbackById(queryClient, todosQueryKey, ctx.id, { status: ctx.prevStatus });
     },
 
     // Swap the optimistic row for the server resource by id (adopting the server's bumped
     // updatedAt) — AD-7 identity/timestamp handoff.
     onSuccess: (server, _input, ctx) => {
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).map((t) => (t.id === ctx?.id ? server : t)),
-      );
+      if (!ctx) return;
+      swapById(queryClient, todosQueryKey, ctx.id, server);
     },
 
-    // Reconciliation backstop: after the LAST in-flight toggle settles, refetch so the cache
-    // equals server truth. Gated on isMutating === 1 (the settling mutation still counts as 1)
-    // so an early refetch during a concurrent toggle can't transiently drop a pending flip.
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: toggleTodoMutationKey }) === 1) {
-        void queryClient.invalidateQueries({ queryKey: todosQueryKey });
-      }
-    },
+    // Reconciliation backstop: after the LAST in-flight toggle settles, refetch so the cache equals
+    // server truth. The shared makeOnSettled applies the gated invalidate (isMutating === 1) so an
+    // early refetch during a concurrent toggle can't transiently drop a pending flip.
+    onSettled: makeOnSettled(queryClient, toggleTodoMutationKey, todosQueryKey),
   });
 }

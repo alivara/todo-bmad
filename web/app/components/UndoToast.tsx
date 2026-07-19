@@ -23,6 +23,12 @@ export function UndoToast() {
   // The error is SCOPED to an entry (RD-5): surface it only when it belongs to the visible toast,
   // so a failed background commit never clobbers a newer, still-undoable toast. A commit failure on
   // the visible entry replaces its `Undo` with the retryable copy (the entry is no longer pending).
+  //
+  // AC3 class note: a delete-commit error is ALWAYS the 5xx/network (retryable) class — a 404 is
+  // treated as success in deleteTodo (RD-5), so a 4xx never reaches here. The controller's message
+  // is the sanctioned retryable copy, and the RETRY PATH is the row itself: on a failed commit the
+  // controller resurrects the row in place (RD-5), so the user re-deletes via its ✕. We therefore
+  // surface the class (sanctioned copy) without a duplicate Try-again button — the ✕ is the retry.
   const scopedError = error && visible && error.id === visible.id ? error.message : null;
 
   // Nothing visible to render.

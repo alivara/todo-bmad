@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Todo, UpdateTodoRequest } from '@shared/todo';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { todosQueryKey } from '@/lib/todos';
+import { is4xx, inline4xxText } from '@/lib/apiError';
 import { usePendingDelete } from '@/lib/pendingDelete';
 import { useToggleTodo } from '@/lib/useToggleTodo';
 import { useUpdateTodo } from '@/lib/useUpdateTodo';
@@ -331,12 +332,26 @@ export function TodoRow({ todo }: { todo: Todo }) {
           </>
         )}
 
-        {(toggle.isError || update.isError) && (
-          // Non-disruptive rollback notice (AC3 / AC5): the row has already rolled back; this
-          // tells the user the save failed. Reuses the sanctioned copy (matches AddInput).
-          <p role="alert" style={toggleErrorStyle}>
-            Something got in the way. Try again.
-          </p>
+        {/* Non-disruptive rollback notice (AC3 / AC5): the row has already rolled back; this tells
+            the user the save failed, branching on error class (4xx inline server message, no retry;
+            5xx/network the sanctioned copy + a Try-again that re-fires the same mutation). */}
+        {toggle.isError && (
+          <MutationError
+            error={toggle.error}
+            onRetry={() => {
+              if (toggle.variables) toggle.mutate(toggle.variables);
+            }}
+          />
+        )}
+        {/* At most one notice: if a toggle error is already shown, don't stack a second identical
+            alert/Try-again for a concurrent edit failure (review P1). */}
+        {!toggle.isError && update.isError && (
+          <MutationError
+            error={update.error}
+            onRetry={() => {
+              if (update.variables) update.mutate(update.variables);
+            }}
+          />
         )}
       </div>
 
@@ -359,6 +374,30 @@ export function TodoRow({ todo }: { todo: Todo }) {
             strokeLinecap="round"
           />
         </svg>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The shared 4xx/5xx split for a mutation surface (AC3). Both of the row's mutations (toggle, edit)
+ * render this: a `4xx` inlines the server's user-facing `message` with NO retry (retrying the
+ * user's malformed input is futile); a `5xx`/network/timeout shows the sanctioned copy plus a
+ * Try-again that re-fires the same mutation (`mutation.mutate(mutation.variables)`).
+ */
+function MutationError({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+  if (is4xx(error)) {
+    return (
+      <p role="alert" style={toggleErrorStyle}>
+        {inline4xxText(error)}
+      </p>
+    );
+  }
+  return (
+    <div role="alert" style={toggleErrorStyle}>
+      <span>Something got in the way. </span>
+      <button type="button" onClick={onRetry} style={rowRetryButtonStyle}>
+        Try again
       </button>
     </div>
   );
@@ -526,6 +565,18 @@ const toggleErrorStyle: CSSProperties = {
   marginTop: 'var(--space-1)',
   fontSize: 13,
   color: 'var(--ink-secondary)',
+};
+
+// The inline Try-again affordance for the 5xx/network class (accent text button; no jargon/red).
+const rowRetryButtonStyle: CSSProperties = {
+  padding: 0,
+  border: 'none',
+  background: 'none',
+  fontFamily: 'var(--font-sans)',
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--accent)',
+  cursor: 'pointer',
 };
 
 // Display text (title/description) is tappable to enter edit-in-place — a text caret cues it.

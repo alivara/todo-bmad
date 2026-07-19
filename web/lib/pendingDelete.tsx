@@ -71,6 +71,14 @@ const PendingDeleteContext = createContext<PendingDeleteContextValue | null>(nul
  *
  * All pending deletes live in a ref'd Map (each its own timer, RD-4); a version counter re-renders
  * consumers whenever the pending set changes so the list `select` re-filters correctly.
+ *
+ * AC4 (systematized rollback) conformance — DELIBERATELY NOT refactored onto the shared
+ * `optimistic.ts` helpers: this controller is the app's most subtle code (a deferred-network,
+ * suppressed-id lifecycle, NOT a TanStack optimistic mutation), and forcing it into that shape
+ * would rewrite it for no behavioural gain (Design Note 4). It ALREADY satisfies the uniform
+ * rollback contract: a failed commit resurrects the row in its natural position (RD-5), which is
+ * exactly id-scoped rollback — the same "put it back on failure" guarantee the three TanStack
+ * mutations get from `rollbackById`/`removeById`.
  */
 export function PendingDeleteProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();

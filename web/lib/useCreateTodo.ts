@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateTodoRequest, Todo } from '@shared/todo';
 import { createTodo, todosQueryKey } from './todos';
+import { makeOnSettled, removeById, swapById } from './optimistic';
 
 // Scopes isMutating()/the mutation cache to creates, so onSettled can tell whether any
 // OTHER add is still in flight before it reconciles (see onSettled below).
@@ -46,33 +47,25 @@ export function useCreateTodo() {
       return { tempId };
     },
 
-    // Visible rollback (AC6): remove ONLY this add's row by temp id. A whole-list snapshot
-    // restore would revert a concurrent sibling add that already swapped in its server row
-    // (rapid type-Enter-type-Enter, UX-DR22); id-scoped removal leaves siblings intact.
+    // Visible rollback (AC6): remove ONLY this add's row by temp id (removeById is id-scoped). A
+    // whole-list snapshot restore would revert a concurrent sibling add that already swapped in its
+    // server row (rapid type-Enter-type-Enter, UX-DR22); id-scoped removal leaves siblings intact.
     // onSettled then reconciles against server truth — no silent divergence.
     onError: (_err, _input, ctx) => {
       if (!ctx) return;
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).filter((t) => t.id !== ctx.tempId),
-      );
+      removeById(queryClient, todosQueryKey, ctx.tempId);
     },
 
     // Swap the temp row for the server resource (temp id → real UUID, server status +
     // timestamps) — AD-7 identity handoff.
     onSuccess: (server, _input, ctx) => {
-      queryClient.setQueryData<Todo[]>(todosQueryKey, (rows) =>
-        (rows ?? []).map((t) => (t.id === ctx?.tempId ? server : t)),
-      );
+      if (!ctx) return;
+      swapById(queryClient, todosQueryKey, ctx.tempId, server);
     },
 
-    // Reconciliation backstop: after the LAST in-flight add settles, refetch so the cache
-    // equals server truth (CM2). Gated on isMutating === 1 (the official TanStack pattern:
-    // the settling mutation still counts as 1 here) so an early refetch during a concurrent
-    // add can't transiently drop a still-pending sibling's optimistic row.
-    onSettled: () => {
-      if (queryClient.isMutating({ mutationKey: createTodoMutationKey }) === 1) {
-        void queryClient.invalidateQueries({ queryKey: todosQueryKey });
-      }
-    },
+    // Reconciliation backstop: after the LAST in-flight add settles, refetch so the cache equals
+    // server truth (CM2). The shared makeOnSettled applies the gated invalidate (isMutating === 1)
+    // so an early refetch during a concurrent add can't transiently drop a still-pending sibling.
+    onSettled: makeOnSettled(queryClient, createTodoMutationKey, todosQueryKey),
   });
 }
