@@ -1,11 +1,27 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Todo } from '@shared/todo';
+import type { Todo, UpdateTodoRequest } from '@shared/todo';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { todosQueryKey } from '@/lib/todos';
 import { useToggleTodo } from '@/lib/useToggleTodo';
+import { useUpdateTodo } from '@/lib/useUpdateTodo';
+
+// Client mirror of the server caps (AD-10). Counted in Unicode code points — see codePoints.
+const MAX_TITLE = 200;
+const MAX_DESCRIPTION = 2000;
+
+// Count Unicode code points, matching Go's utf8.RuneCountInString on the server (mirrors
+// AddInput). The spread iterates by code point; `.length` would count UTF-16 units and disagree
+// with the server on astral characters.
+function codePoints(s: string): number {
+  return [...s].length;
+}
+
+// Locked microcopy (verbatim) — the edit hint uses the middle-dot `·` (U+00B7).
+const EDIT_HINT = 'Enter to save · Esc to cancel';
+const DESCRIPTION_PLACEHOLDER = 'Add a description (optional)';
 
 /**
  * Interactive todo row (Story 2.1, extending the Story 1.3 read-only anatomy). Renders a
@@ -34,10 +50,91 @@ export function TodoRow({ todo }: { todo: Todo }) {
 
   const queryClient = useQueryClient();
   const toggle = useToggleTodo();
+  const update = useUpdateTodo();
+
+  // Inline edit-in-place (Story 2.2). The row itself becomes the editor; the drafts are seeded
+  // from the current values on entry and diffed (trimmed, per-field) against them on save.
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(todo.title);
+  const [descDraft, setDescDraft] = useState(todo.description);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const descInputRef = useRef<HTMLTextAreaElement>(null);
+  // Which field to focus on entering edit (the tapped one). Read once by the focus effect.
+  const focusFieldRef = useRef<'title' | 'description'>('title');
+  // Mirrors `editing` synchronously so the editor-scoped blur handler can tell a real
+  // focus-leaves-editor blur (save) from the unmount blur fired while we're closing (ignore) —
+  // setEditing(false) is async, so a state read alone would still see the editor "open".
+  const editingRef = useRef(false);
 
   const isCompleted = todo.status === 'completed';
   const hasDescription = todo.description !== '';
   const collapsed = !expanded;
+
+  function enterEdit(field: 'title' | 'description') {
+    focusFieldRef.current = field;
+    setTitleDraft(todo.title);
+    setDescDraft(todo.description);
+    editingRef.current = true;
+    setEditing(true);
+  }
+
+  function closeEditor() {
+    editingRef.current = false;
+    setEditing(false);
+  }
+
+  // Esc: revert both drafts and close, no save (AC / Matrix "cancel").
+  function cancelEdit() {
+    setTitleDraft(todo.title);
+    setDescDraft(todo.description);
+    closeEditor();
+  }
+
+  // Save on Enter-in-title or blur-out-of-editor. Trims + mirrors the server validation (AD-10),
+  // builds a patch of ONLY the changed fields (trimmed draft ≠ prior), and issues at most one
+  // PATCH — a no-op patch sends nothing (AD-6 crux). An empty/whitespace title is rejected and
+  // reverts to the prior title; an over-cap field blocks the save (editor stays open).
+  function saveEdit() {
+    const nextTitle = titleDraft.trim();
+    const nextDescription = descDraft.trim();
+
+    // Empty/whitespace title → reject: revert to prior, close, no PATCH (Matrix "empty title").
+    if (nextTitle === '') {
+      cancelEdit();
+      return;
+    }
+    // Over cap → block the save until back within cap; keep the editor open (RD-3).
+    if (codePoints(nextTitle) > MAX_TITLE || codePoints(nextDescription) > MAX_DESCRIPTION) {
+      return;
+    }
+
+    // Per-field trimmed diff against the prior values: only a changed field enters the patch. A
+    // description cleared to "" IS a change (present, empty — an intentional clear); an untouched
+    // field is omitted (absent = unchanged, never a zero-value overwrite — AD-6).
+    const patch: UpdateTodoRequest = {};
+    if (nextTitle !== todo.title) patch.title = nextTitle;
+    if (nextDescription !== todo.description) patch.description = nextDescription;
+
+    if (patch.title !== undefined || patch.description !== undefined) {
+      update.mutate({ id: todo.id, patch });
+    }
+    closeEditor();
+  }
+
+  // Editor-scoped blur: save ONLY when focus leaves the entire editor (relatedTarget outside the
+  // container). Tabbing title→description keeps focus inside → no save. The unmount blur fired
+  // while closing is ignored via editingRef.
+  function handleEditorBlur(e: FocusEvent<HTMLDivElement>) {
+    if (!editingRef.current) return;
+    const next = e.relatedTarget as Node | null;
+    if (editorRef.current && next && editorRef.current.contains(next)) return;
+    // A null relatedTarget from a WINDOW/tab blur (alt-tab, DevTools, switch tab) must not
+    // commit + close the editor mid-edit; only an in-page focus move out of the editor saves.
+    // document.hasFocus() is false when the whole window lost focus.
+    if (!next && !document.hasFocus()) return;
+    saveEdit();
+  }
 
   // Play the check-pop spring ONLY on a fresh, user-triggered active->completed transition —
   // not when an already-completed todo mounts on page load / refetch (that would replay the
@@ -65,6 +162,16 @@ export function TodoRow({ todo }: { todo: Todo }) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [todo.description, hasDescription, collapsed]);
+
+  // On entering edit, focus the tapped field (title tap → title input; description tap →
+  // textarea) so the keyboard-first flow starts where the user pointed (Design Note 4).
+  useEffect(() => {
+    if (!editing) return;
+    const el = focusFieldRef.current === 'description' ? descInputRef.current : titleInputRef.current;
+    el?.focus();
+    // Place the caret at the end of the seeded text rather than selecting all.
+    if (el) el.setSelectionRange(el.value.length, el.value.length);
+  }, [editing]);
 
   // Flip to the opposite status. Read the CURRENT status from the query cache rather than the
   // possibly-stale `todo` prop (which only updates after React commits the prior flip), so a
@@ -110,54 +217,120 @@ export function TodoRow({ todo }: { todo: Todo }) {
       </button>
 
       <div style={contentStyle}>
-        <p style={{ ...titleStyle, ...(isCompleted ? completedTextStyle : null) }}>{todo.title}</p>
-
-        {hasDescription && (
-          <div style={descriptionWrapStyle}>
-            <div style={descriptionClampBoxStyle}>
-              <p
-                ref={descriptionRef}
-                style={{
-                  ...descriptionStyle,
-                  ...(isCompleted ? completedTextStyle : null),
-                  ...(collapsed ? clampStyle : null),
-                }}
-              >
-                {todo.description}
-              </p>
-              {collapsed && overflows && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    ...fadeStyle,
-                    // Blend to the row's ACTUAL backdrop: the raised surface when active, or the
-                    // page canvas showing through the transparent completed card (P5).
-                    background: `linear-gradient(to bottom, transparent, ${
-                      isCompleted ? 'var(--surface-base)' : 'var(--surface-raised)'
-                    })`,
-                  }}
-                />
-              )}
-            </div>
-            {overflows && (
-              <button
-                type="button"
-                onClick={() => setExpanded((v) => !v)}
-                aria-expanded={expanded}
-                style={revealButtonStyle}
-              >
-                {expanded ? 'less' : 'more'}
-              </button>
-            )}
+        {editing ? (
+          <div ref={editorRef} onBlur={handleEditorBlur} style={editorStyle}>
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault(); // Enter in the title saves the whole editor
+                  saveEdit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEdit();
+                }
+              }}
+              aria-label="Edit title"
+              aria-invalid={codePoints(titleDraft.trim()) > MAX_TITLE || undefined}
+              style={editTitleStyle}
+            />
+            <textarea
+              ref={descInputRef}
+              value={descDraft}
+              onChange={(e) => setDescDraft(e.target.value)}
+              onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                // Enter inserts a newline here (multiline description); only Esc is intercepted.
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEdit();
+                }
+              }}
+              rows={2}
+              placeholder={DESCRIPTION_PLACEHOLDER}
+              aria-label="Edit description"
+              aria-invalid={codePoints(descDraft.trim()) > MAX_DESCRIPTION || undefined}
+              style={editDescriptionStyle}
+            />
+            <p style={editHintStyle}>{EDIT_HINT}</p>
           </div>
+        ) : (
+          <>
+            <p
+              role="button"
+              tabIndex={0}
+              onClick={() => enterEdit('title')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  enterEdit('title');
+                }
+              }}
+              style={{ ...titleStyle, ...editableTextStyle, ...(isCompleted ? completedTextStyle : null) }}
+            >
+              {todo.title}
+            </p>
+
+            {hasDescription && (
+              <div style={descriptionWrapStyle}>
+                <div style={descriptionClampBoxStyle}>
+                  <p
+                    ref={descriptionRef}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => enterEdit('description')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        enterEdit('description');
+                      }
+                    }}
+                    style={{
+                      ...descriptionStyle,
+                      ...editableTextStyle,
+                      ...(isCompleted ? completedTextStyle : null),
+                      ...(collapsed ? clampStyle : null),
+                    }}
+                  >
+                    {todo.description}
+                  </p>
+                  {collapsed && overflows && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        ...fadeStyle,
+                        // Blend to the row's ACTUAL backdrop: the raised surface when active, or the
+                        // page canvas showing through the transparent completed card (P5).
+                        background: `linear-gradient(to bottom, transparent, ${
+                          isCompleted ? 'var(--surface-base)' : 'var(--surface-raised)'
+                        })`,
+                      }}
+                    />
+                  )}
+                </div>
+                {overflows && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    aria-expanded={expanded}
+                    style={revealButtonStyle}
+                  >
+                    {expanded ? 'less' : 'more'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            <time dateTime={todo.metadata.createdAt} style={timeStyle}>
+              {formatRelativeTime(todo.metadata.createdAt)}
+            </time>
+          </>
         )}
 
-        <time dateTime={todo.metadata.createdAt} style={timeStyle}>
-          {formatRelativeTime(todo.metadata.createdAt)}
-        </time>
-
-        {toggle.isError && (
-          // Non-disruptive rollback notice (AC3): the checkbox has already flipped back; this
+        {(toggle.isError || update.isError) && (
+          // Non-disruptive rollback notice (AC3 / AC5): the row has already rolled back; this
           // tells the user the save failed. Reuses the sanctioned copy (matches AddInput).
           <p role="alert" style={toggleErrorStyle}>
             Something got in the way. Try again.
@@ -311,6 +484,52 @@ const completedTextStyle: CSSProperties = {
 const toggleErrorStyle: CSSProperties = {
   margin: 0,
   marginTop: 'var(--space-1)',
+  fontSize: 13,
+  color: 'var(--ink-secondary)',
+};
+
+// Display text (title/description) is tappable to enter edit-in-place — a text caret cues it.
+const editableTextStyle: CSSProperties = {
+  cursor: 'text',
+};
+
+// The inline editor container, laid out as a stacked column within the row content.
+const editorStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-2)',
+};
+
+// Title + description fields share the AddInput field idiom: accent border + accent-soft ring
+// on the raised surface, so the row visibly becomes an editor.
+const editFieldBaseStyle: CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  background: 'var(--surface-raised)',
+  border: '1.5px solid var(--accent)',
+  borderRadius: 'var(--radius-sm)',
+  boxShadow: '0 0 0 3px var(--accent-soft)',
+  padding: '8px 10px',
+  fontFamily: 'var(--font-sans)',
+  color: 'var(--ink-primary)',
+  outline: 'none',
+};
+
+const editTitleStyle: CSSProperties = {
+  ...editFieldBaseStyle,
+  fontSize: 17,
+  fontWeight: 500,
+};
+
+const editDescriptionStyle: CSSProperties = {
+  ...editFieldBaseStyle,
+  fontSize: 14,
+  lineHeight: 1.45,
+  resize: 'vertical',
+};
+
+const editHintStyle: CSSProperties = {
+  margin: 0,
   fontSize: 13,
   color: 'var(--ink-secondary)',
 };
