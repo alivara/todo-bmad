@@ -8,11 +8,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
  * empty state, and the inline edit-in-place editor — and writes the full axe results to
  * _bmad-output/test-artifacts/a11y/ for the audit report.
  *
- * Assertion policy: the suite guards against ALL WCAG A/AA violations EXCEPT `color-contrast`,
- * which is a KNOWN, tracked design decision awaiting designer sign-off (see deferred-work.md:
- * --ink-secondary ~3.8:1 body copy, completed-row --ink-muted ~1.9:1). Contrast findings are
- * still captured in the report; excluding them here keeps the guard green for regressions in
- * every OTHER rule (names/roles/labels/landmarks/lang/…) until the palette fix lands.
+ * Assertion policy (Story 3.5): the suite is a HARD gate on ALL WCAG A/AA violations, INCLUDING
+ * `color-contrast`. The contrast exclusion was dropped once the palette fix landed (--ink-secondary
+ * #6b6252, --accent #b0512f, --accent-strong for the Add label, completed text rerouted to
+ * --ink-secondary). All five scanned states — populated, empty, edit, loading, populated-dark —
+ * must now be contrast-clean in both themes.
  */
 
 const WCAG_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
@@ -36,17 +36,14 @@ function persist(state: string, violations: Violation[]) {
   writeFileSync(`${OUT_DIR}/${state}.json`, JSON.stringify(violations.map(summarize), null, 2));
 }
 
-function assertNoNonContrast(state: string, violations: Violation[]) {
+function assertNoViolations(state: string, violations: Violation[]) {
   persist(state, violations);
-  const contrast = violations.filter((v) => v.id === 'color-contrast');
-  const other = violations.filter((v) => v.id !== 'color-contrast');
   // Surface everything in the run log for the report.
-  console.log(`[a11y:${state}] total=${violations.length} contrast=${contrast.length} other=${other.length}`);
+  console.log(`[a11y:${state}] total=${violations.length}`);
   for (const v of violations) console.log(`  - ${v.impact}\t${v.id}\t(${v.nodes.length})\t${v.help}`);
-  expect(
-    other,
-    `non-contrast WCAG A/AA violations in "${state}": ${other.map((v) => v.id).join(', ')}`,
-  ).toEqual([]);
+  expect(violations, `WCAG A/AA violations in "${state}": ${violations.map((v) => v.id).join(', ')}`).toEqual(
+    [],
+  );
 }
 
 test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
@@ -72,13 +69,13 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     await expect(page.getByText('Review the Q3 report')).toBeVisible();
 
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
-    assertNoNonContrast('populated-list', violations);
+    assertNoViolations('populated-list', violations);
   });
 
   test('a11y-005 populated list — warm-dark theme (Story 3.4)', async ({ page, request }) => {
     // Same populated shape as a11y-001, then stamp dark via the header toggle and re-scan. Guards
-    // that activating the dark palette adds no structural/name/role/landmark regression (contrast
-    // stays excluded for BOTH themes — 3.5 owns it).
+    // that activating the dark palette stays fully AA-clean — no structural/name/role/landmark AND
+    // no color-contrast regression in the warm-dark theme (the gate now includes contrast).
     await request.post('/api/todos', {
       data: {
         title: 'Review the Q3 report',
@@ -96,8 +93,16 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     await page.getByRole('button', { name: /toggle theme/i }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
+    // The card surface has a 350ms `background` transition; scanning mid-fade would read an
+    // intermediate light-ish surface under the dark text (a transient, not a real violation).
+    // Snap all transitions/animations to their settled value so axe audits the STABLE warm-dark
+    // presentation — WCAG contrast is a property of the settled state.
+    await page.addStyleTag({
+      content: '*, *::before, *::after { transition: none !important; animation: none !important; }',
+    });
+
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
-    assertNoNonContrast('populated-dark', violations);
+    assertNoViolations('populated-dark', violations);
   });
 
   test('a11y-002 empty state', async ({ page }) => {
@@ -106,7 +111,7 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     await expect(page.getByRole('checkbox')).toHaveCount(0);
 
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
-    assertNoNonContrast('empty-state', violations);
+    assertNoViolations('empty-state', violations);
   });
 
   test('a11y-004 loading skeleton state', async ({ page }) => {
@@ -132,7 +137,7 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
       await expect(page.getByText('Getting your tasks…')).toBeVisible();
 
       const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
-      assertNoNonContrast('loading-skeleton', violations);
+      assertNoViolations('loading-skeleton', violations);
 
       // Release inside the test window and let the skeleton resolve to content (the held GET
       // returns []), so route.fulfill completes before teardown (no "Target closed" race noise).
@@ -154,6 +159,6 @@ test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
     await expect(page.getByRole('textbox', { name: /edit title/i })).toBeVisible();
 
     const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
-    assertNoNonContrast('edit-editor', violations);
+    assertNoViolations('edit-editor', violations);
   });
 });

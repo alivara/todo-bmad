@@ -33,6 +33,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
           <button
             type="button"
             onClick={reset}
+            className="focus-ring"
             style={{
               background: 'var(--accent)',
               color: 'var(--on-accent)',

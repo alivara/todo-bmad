@@ -15,6 +15,9 @@ const LIGHT_TOKENS = [
   'ink-secondary',
   'ink-muted',
   'accent',
+  // Story 3.5: the darker Add-label / high-emphasis accent. Has a -dark twin and a seam remap like
+  // the other palette tokens, so it rides all three presence assertions below.
+  'accent-strong',
   'accent-soft',
   'border-hairline',
   'on-accent',

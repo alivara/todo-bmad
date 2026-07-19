@@ -70,7 +70,13 @@ export default function HomePage() {
           <p style={errorSublineStyle}>
             Something got in the way. Your tasks are safe — let&apos;s try that again.
           </p>
-          <button type="button" onClick={() => refetch()} disabled={isFetching} style={retryButtonStyle}>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="focus-ring"
+            style={retryButtonStyle}
+          >
             {isFetching ? 'Retrying…' : 'Try again'}
           </button>
         </div>

@@ -27,6 +27,7 @@ export default function Error({ reset }: { error: Error & { digest?: string }; r
       <button
         type="button"
         onClick={reset}
+        className="focus-ring"
         style={{
           background: 'var(--accent)',
           color: 'var(--on-accent)',

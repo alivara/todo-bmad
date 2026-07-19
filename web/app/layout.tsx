@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './globals.css';
 import { Providers } from './providers';
@@ -6,6 +6,18 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'todo',
   description: 'A warm, restrained single-user todo app.',
+};
+
+// Responsive floor (Story 3.5): device-width + initial-scale so the mobile-first ≤560px column
+// renders 1:1 from ~375px up with no forced zoom. themeColor keeps the mobile browser chrome
+// (address bar / status area) in step with the active palette in both light and warm-dark.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5efe6' },
+    { media: '(prefers-color-scheme: dark)', color: '#221e1a' },
+  ],
 };
 
 // No-flash theme init (Story 3.4). A blocking IIFE that runs before paint, as the first child of
