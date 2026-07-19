@@ -86,3 +86,50 @@ test.describe('@e2e @p0 complete a task — toggle + rollback (2.1 / AD-4)', () 
     await expect(checkbox).toHaveAttribute('aria-checked', 'false');
   });
 });
+
+/**
+ * Story 2.1 — the completed-state PAYOFF under reduced motion (AC2 / 2.1-R9). The spring
+ * (check-pop) is decoration; `prefers-reduced-motion: reduce` disables it. This asserts that
+ * the functional payoff STILL applies without the animation — the checkbox flips to completed
+ * AND the card recedes to the ~0.85-opacity "done" treatment — proving motion decorates but
+ * never gates the state change. Exact color matching is deliberately avoided (brittle); the
+ * recessed opacity (an inline style value) is the robust, meaningful visual signal.
+ */
+test.describe('@e2e @p0 completed payoff under reduced motion (2.1 / AC2)', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test.beforeEach(async ({ request }) => {
+    await resetTodos(request);
+  });
+
+  test('2.1-E2E-003 completed card recedes (~0.85 opacity) with motion disabled — motion never gates', async ({
+    page,
+    seedTodos,
+  }) => {
+    await seedTodos([{ title: 'Reduced-motion payoff' }]);
+
+    await page.goto('/');
+    const checkbox = page.getByRole('checkbox', { name: /Reduced-motion payoff/i });
+    await expect(checkbox).toHaveAttribute('aria-checked', 'false');
+
+    await Promise.all([
+      page.waitForRequest((req) => req.url().includes('/api/todos/') && req.method() === 'PATCH'),
+      checkbox.click(),
+    ]);
+
+    // The state change lands regardless of motion...
+    await expect(checkbox).toHaveAttribute('aria-checked', 'true');
+
+    // ...and the recessed "done" card treatment applies — walk up from the checkbox to the
+    // element that owns the receding opacity. Poll so the 350ms opacity transition can settle.
+    await expect
+      .poll(async () =>
+        checkbox.evaluate((el) => {
+          let node: HTMLElement | null = el as HTMLElement;
+          while (node && getComputedStyle(node).opacity === '1') node = node.parentElement;
+          return node ? getComputedStyle(node).opacity : '1';
+        }),
+      )
+      .toBe('0.85');
+  });
+});

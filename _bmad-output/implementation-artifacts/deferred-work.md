@@ -26,3 +26,37 @@
 - source_spec: `spec-2-2-edit-a-task-in-place.md`
   summary: Inline edit (tap the title/description text) has no visible discoverability affordance — the only cue is `cursor: text` on hover (`web/app/components/TodoRow.tsx` editableTextStyle), invisible on touch/mobile. Editing works but users can't find it; the asymmetry worsened once 2.3 added a visible ✕ delete icon.
   evidence: Confirmed in code — editableTextStyle is `{ cursor: 'text' }` only. Matches the locked UX ("tap the row's text to edit", no edit button), so not a bug — a discoverability gap. User decision (2026-07-19): defer to Story 3.2 (polished states owns visual polish). Options recorded: (a) hover/focus tint + pencil hint on the editable text [recommended, honors the minimal design], (b) explicit edit ✎ icon symmetric with ✕ [needs UX sign-off]. On mobile, a persistent faint cue is needed (no hover).
+
+## Deferred from: expert review of story-4.1 (2026-07-19, Gopher + Pixel)
+
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: The CI fast lane never compiles or lints the `testseed`-tagged code (`api/testhelpers/seed.go`, `api/testroutes_testseed.go`, `api/repository/repository_injection_test.go`), so a compile/lint break in the reset seam passes green until the Story 4.2 integration lane exists.
+  evidence: `go test ./...` runs without `-tags testseed` and golangci-lint sets no build tags — deliberate per this story's "no DB in the fast lane" scope, but a real coverage gap. When 4.2 lands (or sooner), add a cheap `go build -tags testseed ./...` compile guard or set `build-tags: testseed` for the linter. Not this story's problem.
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: `web/package.json` pins `@types/node` at `^24` while CI/runtime is Node 22 — a latent types-vs-runtime major mismatch.
+  evidence: Types-only, so it does not break the current 5 jsdom unit files, but code type-checking green against Node 24 types could reference a Node-24-only API absent at Node-22 runtime. Fix touches `web/package.json` (outside this workflow-only story): align to `@types/node@22` or move CI to Node 24.
+- source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`
+  summary: No committed Node version pin — CI floats on `node-version: '22'` and there is no `.nvmrc`/`engines`, so CI and local dev can drift within the 22.x line.
+  evidence: Go is pinned via `go.mod`; Node has no in-repo source of truth. Fix touches web source/config (outside this workflow-only story): add `web/.nvmrc` (or `engines.node`) and switch the workflow to `node-version-file`.
+
+## Deferred from: security review — XSS & injection (2026-07-19, Murat / TEA)
+
+> Full report: `_bmad-output/test-artifacts/security-review-xss-injection.md`. Review verdict PASS (no exploitable XSS/injection). These are LOW/INFO **hardening** items — the natural home is **Story 3.5 (responsive polish, voice & accessibility floor)**, which already owns the v1 a11y/security floor + NFR9/NFR10.
+
+- source_spec: `security-review-xss-injection.md` (SEC-1)
+  summary: No Content-Security-Policy or security response headers — `web/next.config.mjs` sets none and there is no `middleware.ts`; React output-escaping is the SOLE XSS control.
+  evidence: LOW/defense-in-depth. A future `dangerouslySetInnerHTML` or a compromised dependency would execute today; a CSP (`script-src 'self'`) plus `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY` would blunt it and stop clickjacking/MIME-sniffing. **Fix (Epic 3 / Story 3.5):** add `async headers()` in `web/next.config.mjs` (ready-to-paste snippet incl. the `style-src 'unsafe-inline'` caveat for Next's inline runtime is in the report) + a CI/E2E assertion that the CSP header is served.
+- source_spec: `security-review-xss-injection.md` (SEC-1b)
+  summary: No regression test locking the React-escaping guarantee for stored todo text.
+  evidence: LOW. Add an RTL test asserting a todo whose title is `<img src=x onerror=alert(1)>` renders as escaped text (not a live element), so a future refactor to a raw-HTML sink fails loudly. Pairs with the CSP work in Story 3.5.
+- source_spec: `security-review-xss-injection.md` (SEC-3)
+  summary: Stored todo text is raw (not HTML-encoded at rest) — correct today because React encodes at render.
+  evidence: INFO/forward-guard. Any FUTURE non-React render of todo text (HTML email, CSV/PDF export, server-rendered HTML fragment) MUST apply context-appropriate output encoding, or stored XSS becomes reachable there. Add an encoding step + note in that feature's spec when introduced.
+
+## Deferred from: accessibility audit — WCAG 2.1 AA (2026-07-19, Alivara / QA)
+
+> Full report: `_bmad-output/test-artifacts/a11y/accessibility-audit.md` (axe-core 4.12.1, live scan of current main incl. Story 2.2). Only `color-contrast` flagged; everything else AA-clean. Home: **Story 3.5 (a11y/security floor)**. The `color-contrast` rule is currently EXCLUDED from the passing assertion in `web/tests/e2e/a11y.spec.ts` — drop that exclusion once the palette fix lands to make AA contrast a hard gate.
+
+- source_spec: `accessibility-audit.md` (A11Y-1)
+  summary: color-contrast (WCAG 1.4.3, serious) below AA — CONFIRMS the story-1.3 contrast entries with axe evidence, and adds a NEW node not previously catalogued: the "Add" submit button (`button[type="submit"]`) flags in all three states.
+  evidence: Root causes — `--ink-secondary` (#8a8072 ≈3.8:1: relative time, empty-state copy, edit hint, reveal `more` button); completed-row `--ink-muted` (#b8ae9e ≈1.9:1, now LIVE since Story 2.1 shipped completion); and the "Add" button label/background ratio (verify `--on-accent` on `--accent`). Fix = darken `--ink-secondary` toward ~#6f6656 (≥4.6:1), bump completed-text token ≥4.5:1, and correct the submit-button contrast — all palette/design decisions needing sign-off. Then remove the `color-contrast` exclusion in a11y.spec.ts.
