@@ -65,3 +65,9 @@
 - source_spec: `spec-4-2-ci-integration-e2e-lane-health-gated.md`
   summary: The `integration-e2e` job runs the Go testseed suite in a one-off `golang:1.26-alpine` container with no `GOMODCACHE`/`GOCACHE` volume, so it re-downloads and recompiles all modules every run — slower, and a module-proxy hiccup would flake the step.
   evidence: Correctness is fine (verified passing), this is a reliability/speed nit flagged by both reviewers. Fix: mount a cached module/build dir into the container or cache it via `actions/cache`, or run the tests via a compose-defined go service. Deferred to a CI-optimization pass.
+
+## Deferred from: expert review of create-todo-description-field (2026-07-19, Pixel) → Story 3.5
+
+- source_spec: `spec-create-todo-description-field.md`
+  summary: The new create **description** `<textarea>` wears an unconditional accent border + `accent-soft` halo with `outline:'none'` and no `:focus-visible` (mirrors the title input / `editFieldBaseStyle` per spec). So an empty, unfocused, optional field permanently looks focused/active, and tabbing into it gives zero visual delta — a WCAG 2.4.7 Focus-Visible gap. This is the pre-existing Story-1.2 focus-halo item (`outline:'none'` + always-painted halo) now DOUBLED onto a second, never-focused field.
+  evidence: axe does not test focus appearance, so the a11y e2e lane stays green — CI will not catch it. The implementation faithfully followed the spec's "mirror the edit field idiom" instruction, so this is spec-inherited debt, not an impl slip. Fix (with the 1.2 halo item, → Story 3.5 a11y floor): give both AddInput fields a quiet rest border (e.g. `--border-hairline`, no boxShadow) and move the accent border + `accent-soft` halo to `:focus-visible` via a shared className + a `globals.css` rule mirroring the existing `.todo-editable:focus-visible` (globals.css:216). Also: the deferred-1.2 "over-cap `aria-invalid` with no SR reason" now applies to this textarea too.

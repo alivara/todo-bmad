@@ -46,7 +46,7 @@ describe('mutation error split (AC3) on AddInput', () => {
     });
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: 'Whatever' } });
     fireEvent.submit(input.closest('form')!);
 
@@ -74,7 +74,7 @@ describe('mutation error split (AC3) on AddInput', () => {
     });
     render(<AddInput />, { wrapper: wrapper(client) });
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('textbox', { name: 'Add a task' });
     fireEvent.change(input, { target: { value: 'Ship it' } });
     fireEvent.submit(input.closest('form')!);
 
