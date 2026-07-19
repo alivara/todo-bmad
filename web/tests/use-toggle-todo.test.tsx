@@ -184,4 +184,36 @@ describe('useToggleTodo', () => {
     await waitFor(() => expect(screen.getByText('a:active')).toBeInTheDocument());
     expect(screen.getByText('b:completed')).toBeInTheDocument();
   });
+
+  // AC3 spans "5xx / network / timeout"; the 5xx path is covered above. This pins the NETWORK
+  // class: fetch itself rejects (no Response object), so todos.ts never inspects res.ok — the
+  // mutationFn throws and the same onError rollback must fire, flipping the row back visibly.
+  it('rolls back visibly when the toggle fails with a network error (fetch rejects, no response)', async () => {
+    let releasePatch!: () => void;
+    const patchGate = new Promise<void>((r) => {
+      releasePatch = r;
+    });
+    fetchMock.mockImplementation(async (_url: string, init?: RequestInit) => {
+      const method = (init?.method ?? 'GET').toUpperCase();
+      if (method === 'PATCH') {
+        await patchGate; // hold so the optimistic completed state is observable first
+        throw new TypeError('Failed to fetch'); // network-layer failure / aborted request
+      }
+      // Server truth stays active (the toggle never persisted).
+      return { ok: true, status: 200, json: async () => [ACTIVE] };
+    });
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<Harness />, { wrapper: wrapper(client) });
+
+    await waitFor(() => expect(screen.getByText('status:active')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'toggle' }));
+
+    // Optimistically flips to completed...
+    await waitFor(() => expect(screen.getByText('status:completed')).toBeInTheDocument());
+
+    // ...then the network error triggers the same visible rollback to the prior (active) status.
+    releasePatch();
+    await waitFor(() => expect(screen.getByText('status:active')).toBeInTheDocument());
+  });
 });
