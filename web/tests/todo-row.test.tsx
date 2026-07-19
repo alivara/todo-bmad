@@ -298,6 +298,42 @@ describe('TodoRow', () => {
     expect(screen.getByRole('textbox', { name: 'Edit title' })).toBeInTheDocument();
   });
 
+  // Story 3.3 — progressive counter in the editor: hidden at rest, appears within 20 of the cap,
+  // accent-bold current number; over cap shows the overage while the save stays blocked.
+  it('shows the accent-bold title counter as the edited title nears the 200 cap', () => {
+    renderRow(makeTodo({ id: 'id-1', title: 'Email Sam the Q3 numbers', description: '' }));
+
+    fireEvent.click(screen.getByText('Email Sam the Q3 numbers'));
+    const titleInput = screen.getByRole('textbox', { name: 'Edit title' });
+    // At rest (short seeded title) the counter is hidden.
+    expect(screen.queryByText('/ 200', { exact: false })).not.toBeInTheDocument();
+
+    fireEvent.change(titleInput, { target: { value: 'a'.repeat(184) } });
+    const current = screen.getByText('184');
+    expect(current).toHaveStyle({ color: 'var(--accent)', fontWeight: 700 });
+  });
+
+  // RD-3 + Story 3.3: an over-cap DESCRIPTION blocks the save (editor stays open, no PATCH) and
+  // its counter shows the overage against the 2000 cap.
+  it('blocks the save while the description is over the 2000 code-point cap and shows the overage', async () => {
+    renderRow(makeTodo({ id: 'id-1', title: 'Email Sam the Q3 numbers', description: 'Attach the deck' }));
+
+    fireEvent.click(screen.getByText('Attach the deck'));
+    const descInput = screen.getByRole('textbox', { name: 'Edit description' });
+    fireEvent.change(descInput, { target: { value: 'a'.repeat(2001) } });
+
+    // The description counter shows the overage (accent-bold, no red token).
+    const current = screen.getByText('2001');
+    expect(current).toHaveStyle({ color: 'var(--accent)', fontWeight: 700 });
+    expect(descInput).toHaveAttribute('aria-invalid', 'true');
+
+    // Saving via Enter in the title is blocked; the editor stays open and nothing is sent.
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Edit title' }), { key: 'Enter' });
+    await Promise.resolve();
+    expect(patchCalls(fetchMock)).toHaveLength(0);
+    expect(screen.getByRole('textbox', { name: 'Edit description' })).toBeInTheDocument();
+  });
+
   // Keyboard entry (review P1): the title is a focusable control, openable with Enter — a
   // keyboard-only user can reach edit mode, not just a pointer.
   it('opens the editor from the keyboard (Enter on the focusable title)', () => {

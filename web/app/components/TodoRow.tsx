@@ -9,17 +9,8 @@ import { is4xx, inline4xxText } from '@/lib/apiError';
 import { usePendingDelete } from '@/lib/pendingDelete';
 import { useToggleTodo } from '@/lib/useToggleTodo';
 import { useUpdateTodo } from '@/lib/useUpdateTodo';
-
-// Client mirror of the server caps (AD-10). Counted in Unicode code points — see codePoints.
-const MAX_TITLE = 200;
-const MAX_DESCRIPTION = 2000;
-
-// Count Unicode code points, matching Go's utf8.RuneCountInString on the server (mirrors
-// AddInput). The spread iterates by code point; `.length` would count UTF-16 units and disagree
-// with the server on astral characters.
-function codePoints(s: string): number {
-  return [...s].length;
-}
+import { MAX_TITLE, MAX_DESCRIPTION, codePoints } from '@/lib/caps';
+import { CharCounter } from '@/app/components/CharCounter';
 
 // Locked microcopy (verbatim) — the edit hint uses the middle-dot `·` (U+00B7).
 const EDIT_HINT = 'Enter to save · Esc to cancel';
@@ -240,6 +231,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
               aria-invalid={codePoints(titleDraft.trim()) > MAX_TITLE || undefined}
               style={editTitleStyle}
             />
+            <CharCounter value={titleDraft} max={MAX_TITLE} />
             <textarea
               ref={descInputRef}
               value={descDraft}
@@ -257,6 +249,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
               aria-invalid={codePoints(descDraft.trim()) > MAX_DESCRIPTION || undefined}
               style={editDescriptionStyle}
             />
+            <CharCounter value={descDraft} max={MAX_DESCRIPTION} />
             <p style={editHintStyle}>{EDIT_HINT}</p>
           </div>
         ) : (

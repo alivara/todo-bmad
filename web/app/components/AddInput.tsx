@@ -3,16 +3,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { useCreateTodo } from '@/lib/useCreateTodo';
 import { is4xx, inline4xxText } from '@/lib/apiError';
-
-// Client mirror of the server cap (AD-10). Counted in Unicode code points — see codePoints.
-const MAX_TITLE = 200;
-
-// Count Unicode code points, matching Go's utf8.RuneCountInString on the server. The
-// spread iterates by code point (surrogate pairs collapse to 1); `.length` would count
-// UTF-16 units and disagree with the server on astral characters.
-function codePoints(s: string): number {
-  return [...s].length;
-}
+import { MAX_TITLE, codePoints } from '@/lib/caps';
+import { CharCounter } from '@/app/components/CharCounter';
 
 /**
  * The pinned, always-focused add-input (UX-DR5). Submits on Enter or the Add button
@@ -77,6 +69,11 @@ export function AddInput() {
       <button type="submit" aria-label="Add" style={buttonStyle}>
         Add
       </button>
+      {/* The counter is a full-width row (mirrors the error row's flexBasis:100%): hidden until
+          within 20 of the cap, then a quiet accent-bold `n / 200`. The flexBasis lives on the
+          counter itself so at rest NOTHING renders (no empty row-gap gutter). Counts the raw
+          value; the submit guard above still counts the trimmed value. */}
+      <CharCounter value={value} max={MAX_TITLE} style={counterRowStyle} />
       {create.isError &&
         (is4xx(create.error) ? (
           // 4xx = the user's input (a client/server validation mirror drift, AD-10). Inline the
@@ -142,6 +139,12 @@ const errorStyle: CSSProperties = {
   margin: 0,
   color: 'var(--ink-secondary)',
   fontSize: 13,
+};
+
+// Full-width row for the char counter, sitting below the input/button pair on the wrapping flex
+// form. The CharCounter renders nothing at rest, so this row is empty (zero height) until near-cap.
+const counterRowStyle: CSSProperties = {
+  flexBasis: '100%',
 };
 
 // The inline Try-again affordance for the 5xx/network class: an accent-colored text button (no
