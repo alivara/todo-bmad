@@ -32,6 +32,9 @@ type stubService struct {
 	updateErr error
 	// lastUpdate captures the arguments the handler forwarded (to assert pointer binding).
 	lastUpdate *updateArgs
+	// deleteErr forces the DeleteTodo failure path; lastDeleteID captures the forwarded id.
+	deleteErr    error
+	lastDeleteID string
 }
 
 type createArgs struct{ title, description string }
@@ -60,6 +63,11 @@ func (s *stubService) UpdateTodo(_ context.Context, id string, title, descriptio
 	return s.updated, nil
 }
 
+func (s *stubService) DeleteTodo(_ context.Context, id string) error {
+	s.lastDeleteID = id
+	return s.deleteErr
+}
+
 func doGET(t *testing.T, svc TodoService, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
@@ -82,6 +90,14 @@ func doPATCH(t *testing.T, svc TodoService, path, body string) *httptest.Respons
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPatch, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	NewRouter(svc).ServeHTTP(rec, req)
+	return rec
+}
+
+func doDELETE(t *testing.T, svc TodoService, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
 	NewRouter(svc).ServeHTTP(rec, req)
 	return rec
 }
@@ -432,6 +448,82 @@ func TestUpdateTodo_DescriptionClearDecodesNonNilEmptyPointer(t *testing.T) {
 	if svcOmit.lastUpdate.description != nil {
 		t.Fatalf("omitted description = %v, want nil (unchanged — never a zero-value overwrite)",
 			*svcOmit.lastUpdate.description)
+	}
+}
+
+// 2.3 AC: a DELETE of an existing todo returns 204 with an empty body and forwards the path id
+// to the service (the commit that fires when the client's undo window elapses).
+func TestDeleteTodo_ExistingReturns204(t *testing.T) {
+	svc := &stubService{}
+
+	rec := doDELETE(t, svc, "/todos/55555555-5555-4555-8555-555555555555")
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if body := rec.Body.String(); body != "" {
+		t.Fatalf("body = %q, want empty (204 No Content)", body)
+	}
+	if svc.lastDeleteID != "55555555-5555-4555-8555-555555555555" {
+		t.Fatalf("forwarded id = %q, want the path param", svc.lastDeleteID)
+	}
+}
+
+// 2.3 AC: an unknown id surfaces from the service as a NotFoundError → 404 not_found (AD-9).
+// The client treats this "already gone" 404 as success (RD-5), but the wire is still a 404.
+func TestDeleteTodo_UnknownIdIs404(t *testing.T) {
+	svc := &stubService{deleteErr: model.NotFoundError{Message: "todo not found"}}
+
+	rec := doDELETE(t, svc, "/todos/does-not-exist")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if apiErr.Error.Code != model.CodeNotFound {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeNotFound)
+	}
+}
+
+// The handler maps ANY NotFoundError → 404 not_found regardless of the id's shape (so a malformed,
+// non-uuid id is a 404, never a 500). The actual 22P02 malformed-id → NotFoundError mapping lives in
+// the repository and is exercised end-to-end in repository_delete_test.go (testseed) — the stub here
+// can only prove the handler's error→status mapping, so it asserts the envelope too.
+func TestDeleteTodo_MalformedIdIs404(t *testing.T) {
+	svc := &stubService{deleteErr: model.NotFoundError{Message: "todo not found"}}
+
+	rec := doDELETE(t, svc, "/todos/not-a-uuid")
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if apiErr.Error.Code != model.CodeNotFound {
+		t.Errorf("code = %q, want %q", apiErr.Error.Code, model.CodeNotFound)
+	}
+}
+
+// A non-NotFound error from the service maps to the AD-9 500 internal_error envelope.
+func TestDeleteTodo_UnexpectedErrorIs500(t *testing.T) {
+	svc := &stubService{deleteErr: errors.New("db down")}
+
+	rec := doDELETE(t, svc, "/todos/55555555-5555-4555-8555-555555555555")
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	var apiErr model.APIError
+	if err := json.Unmarshal(rec.Body.Bytes(), &apiErr); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if apiErr.Error.Code != model.CodeInternalError {
+		t.Fatalf("code = %q, want %q", apiErr.Error.Code, model.CodeInternalError)
 	}
 }
 

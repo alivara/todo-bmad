@@ -21,6 +21,12 @@
   summary: Completed-row text (`--ink-muted` #b8ae9e on #fffcf7 ≈ 1.9:1) is illegible, not merely de-emphasized.
   evidence: Dormant in 1.3 (no `completed` todos exist until Epic 2 activates completion). When Epic 2 lands the toggle, bump completed text to a token clearing ≥4.5:1 (or ≥3:1 if treated as deprioritized content). `web/app/components/TodoRow.tsx` completedTextStyle.
 
+## Deferred from: Story 2.2 UX feedback (2026-07-19) → Epic 3 / Story 3.2
+
+- source_spec: `spec-2-2-edit-a-task-in-place.md`
+  summary: Inline edit (tap the title/description text) has no visible discoverability affordance — the only cue is `cursor: text` on hover (`web/app/components/TodoRow.tsx` editableTextStyle), invisible on touch/mobile. Editing works but users can't find it; the asymmetry worsened once 2.3 added a visible ✕ delete icon.
+  evidence: Confirmed in code — editableTextStyle is `{ cursor: 'text' }` only. Matches the locked UX ("tap the row's text to edit", no edit button), so not a bug — a discoverability gap. User decision (2026-07-19): defer to Story 3.2 (polished states owns visual polish). Options recorded: (a) hover/focus tint + pencil hint on the editable text [recommended, honors the minimal design], (b) explicit edit ✎ icon symmetric with ✕ [needs UX sign-off]. On mobile, a persistent faint cue is needed (no hover).
+
 ## Deferred from: expert review of story-4.1 (2026-07-19, Gopher + Pixel)
 
 - source_spec: `spec-4-1-ci-fast-lane-quality-gate-unit-tests.md`

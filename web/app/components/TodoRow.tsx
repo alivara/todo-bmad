@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { Todo, UpdateTodoRequest } from '@shared/todo';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { todosQueryKey } from '@/lib/todos';
+import { usePendingDelete } from '@/lib/pendingDelete';
 import { useToggleTodo } from '@/lib/useToggleTodo';
 import { useUpdateTodo } from '@/lib/useUpdateTodo';
 
@@ -51,6 +52,7 @@ export function TodoRow({ todo }: { todo: Todo }) {
   const queryClient = useQueryClient();
   const toggle = useToggleTodo();
   const update = useUpdateTodo();
+  const { requestDelete } = usePendingDelete();
 
   // Inline edit-in-place (Story 2.2). The row itself becomes the editor; the drafts are seeded
   // from the current values on entry and diffed (trimmed, per-field) against them on save.
@@ -337,6 +339,27 @@ export function TodoRow({ todo }: { todo: Todo }) {
           </p>
         )}
       </div>
+
+      {/* The quiet delete affordance (Story 2.3, Design Note 1): ALWAYS rendered (mobile-first has
+          no hover), a real focusable <button>, quiet by default and emphasized on hover/focus
+          (globals.css .todo-delete). Activating it hands the row to the client-owned pending-delete
+          lifecycle (optimistic remove + Undo toast) — NO network call fires here (AD-5). */}
+      <button
+        type="button"
+        className="todo-delete"
+        aria-label={`Delete ${todo.title}`}
+        onClick={() => requestDelete(todo)}
+        style={deleteButtonStyle}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" focusable="false">
+          <path
+            d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      </button>
     </div>
   );
 }
@@ -399,6 +422,23 @@ const contentStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 'var(--space-1)',
+};
+
+// The trailing-edge ✕. Colors + hover/focus emphasis live in globals.css (.todo-delete) since
+// inline styles can't express :hover; here only the box geometry (a small round tap target).
+const deleteButtonStyle: CSSProperties = {
+  flexShrink: 0,
+  width: 28,
+  height: 28,
+  marginTop: 2,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: 'none',
+  background: 'transparent',
+  borderRadius: 'var(--radius-full)',
+  cursor: 'pointer',
 };
 
 const titleStyle: CSSProperties = {

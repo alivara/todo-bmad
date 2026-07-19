@@ -3,15 +3,23 @@
 import { useQuery } from '@tanstack/react-query';
 import type { CSSProperties } from 'react';
 import { fetchTodos, todosQueryKey } from '@/lib/todos';
+import { usePendingDelete } from '@/lib/pendingDelete';
 import { AddInput } from './components/AddInput';
 import { EmptyState } from './components/EmptyState';
 import { TodoRow } from './components/TodoRow';
+import { UndoToast } from './components/UndoToast';
 import { Wordmark } from './components/Wordmark';
 
 export default function HomePage() {
+  // Pending-deleted ids are suppressed via the query `select` below (never removed from the cache),
+  // so a refetch/invalidate during the undo window can't resurrect a row (AD-4/AD-5). This also
+  // subscribes the page to the controller, so it re-renders — and rebuilds the `select` closure —
+  // whenever the pending set changes.
+  const { isPending: isPendingDelete } = usePendingDelete();
   const { data, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: todosQueryKey,
     queryFn: fetchTodos,
+    select: (rows) => rows.filter((t) => !isPendingDelete(t.id)),
   });
 
   return (
@@ -24,6 +32,10 @@ export default function HomePage() {
       <AddInput />
 
       <main style={mainStyle}>{renderBody()}</main>
+
+      {/* The pending-delete Undo toast lives at page level (bottom-center fixed), above the list
+          in the tree so a delete originating in any row surfaces here (Story 2.3). */}
+      <UndoToast />
     </div>
   );
 

@@ -7,8 +7,10 @@ import { faker } from '@faker-js/faker';
  *   - resetTodos          -> truncate list state between tests via the test-only reset
  *                            endpoint (compiled in only under the `testseed` build tag)
  *
- * Story 1.2 predates DELETE (Story 2.3), so cleanup uses the reset endpoint rather than
- * per-id DELETE. That makes reset a full truncate, so the suite runs serially.
+ * DELETE /todos/:id now exists (Story 2.3), but cleanup still uses the test-only reset endpoint:
+ * reset is a full truncate (fast, unconditional) whereas per-id DELETE would require tracking and
+ * deleting every seeded row. Reset truncating the shared table is why the suite still runs
+ * serially. The reset route is retained as the cleanup mechanism.
  */
 
 export type NewTodo = { title: string; description?: string };

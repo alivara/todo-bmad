@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { Todo } from '@shared/todo';
 import { TodoRow } from '@/app/components/TodoRow';
+import { PendingDeleteProvider } from '@/lib/pendingDelete';
 
 // Row anatomy (Story 1.3) + interactive checkbox (Story 2.1): title/description/relative-time
 // render, ""-description omission, the clamp `more`→expand-in-place→`less` reveal, completed
@@ -33,8 +34,12 @@ const LONG_DESCRIPTION =
 
 function renderRow(todo: Todo) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // TodoRow now hosts the quiet ✕ (Story 2.3), which reads the pending-delete controller — so the
+  // row must render inside a PendingDeleteProvider (itself inside the QueryClientProvider).
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <PendingDeleteProvider>{children}</PendingDeleteProvider>
+    </QueryClientProvider>
   );
   return render(<TodoRow todo={todo} />, { wrapper });
 }

@@ -26,6 +26,11 @@ type stubRepo struct {
 	gotUpDesc    *string
 	gotUpStatus  *string
 	updateReturn model.Todo
+
+	// DeleteTodo capture + control.
+	deleteErr   error
+	deleteCalls int
+	gotDeleteID string
 }
 
 func (r *stubRepo) ListTodos(context.Context) ([]model.Todo, error) { return nil, nil }
@@ -46,6 +51,12 @@ func (r *stubRepo) UpdateTodo(_ context.Context, id string, title, description, 
 		return model.Todo{}, r.updateErr
 	}
 	return r.updateReturn, nil
+}
+
+func (r *stubRepo) DeleteTodo(_ context.Context, id string) error {
+	r.deleteCalls++
+	r.gotDeleteID = id
+	return r.deleteErr
 }
 
 func strptr(s string) *string { return &s }
@@ -296,6 +307,32 @@ func TestUpdateTodo_EmptyOrWhitespaceTitleRejected(t *testing.T) {
 		if repo.updateCalls != 0 {
 			t.Fatalf("title %q: repository called %d times, want 0", title, repo.updateCalls)
 		}
+	}
+}
+
+// 2.3 AC: DeleteTodo is a thin passthrough — it forwards the id to the repository with no
+// business rule applied (the pending/undo lifecycle is entirely client-side, AD-5) and returns
+// nil on success.
+func TestDeleteTodo_ForwardsToRepo(t *testing.T) {
+	repo := &stubRepo{}
+	if err := New(repo).DeleteTodo(context.Background(), "the-id"); err != nil {
+		t.Fatalf("unexpected err %v", err)
+	}
+	if repo.deleteCalls != 1 {
+		t.Fatalf("repository called %d times, want 1", repo.deleteCalls)
+	}
+	if repo.gotDeleteID != "the-id" {
+		t.Fatalf("repo got id %q, want the forwarded id", repo.gotDeleteID)
+	}
+}
+
+// 2.3 AC: a repository NotFoundError (unknown/malformed id → RowsAffected==0 or 22P02)
+// propagates unchanged so the handler maps it to 404 — never masked as a 500.
+func TestDeleteTodo_NotFoundPropagates(t *testing.T) {
+	repo := &stubRepo{deleteErr: model.NotFoundError{Message: "todo not found"}}
+	err := New(repo).DeleteTodo(context.Background(), "missing")
+	if !isNotFoundErr(err) {
+		t.Fatalf("err = %v, want NotFoundError", err)
 	}
 }
 

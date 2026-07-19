@@ -64,8 +64,8 @@ development_status:
   # NOTE: Epic 4 (CI/CD) was prioritized before Epic 2 resumes (see header); Epic 2 was resumed
   # on explicit request (2.1, 2.2). PR #9 (2.1) merged → done.
   2-1-complete-a-task-toggle-with-the-payoff: done
-  2-2-edit-a-task-in-place: review
-  2-3-delete-a-task-with-undo: backlog
+  2-2-edit-a-task-in-place: done
+  2-3-delete-a-task-with-undo: review
   epic-2-retrospective: optional
 
   # Epic 3: Trustworthy, Polished Experience

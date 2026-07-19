@@ -60,3 +60,24 @@ export async function updateTodo(id: string, patch: UpdateTodoRequest): Promise<
 
   return (await res.json()) as Todo;
 }
+
+/**
+ * Hard-deletes a todo via the same-origin dumb proxy (AD-3) → `DELETE /api/todos/{id}`. This is
+ * the COMMIT that fires when a pending delete's client-owned window elapses (or is flushed on
+ * unload) — never during the undo window (AD-5). The server returns `204` on success.
+ *
+ * A `404` ("already gone") is treated as SUCCESS and resolves, NOT thrown (RD-5) — unlike the
+ * other helpers — because a delete of a row the server no longer has is exactly the desired end
+ * state. Any OTHER non-2xx (5xx/network) throws so the controller resurrects the row at its index.
+ */
+export async function deleteTodo(id: string): Promise<void> {
+  const res = await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+
+  // 204 (deleted) AND 404 (already gone) are both success — the row is not there, which is what
+  // the delete asked for. Only 404 needs an explicit early return since it is not `res.ok`.
+  if (res.status === 404) return;
+
+  if (!res.ok) {
+    throw new Error(`Failed to delete todo (status ${res.status})`);
+  }
+}
