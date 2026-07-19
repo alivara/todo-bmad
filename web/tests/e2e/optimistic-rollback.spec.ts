@@ -28,7 +28,10 @@ test.describe('@e2e @p0 optimistic rollback — add path (R1 / CM2)', () => {
     await input.press('Enter');
 
     // Appears optimistically, then must disappear on failure, and an error is surfaced.
+    // Assert the alert REGION (robust to its internal structure: Story 3.1's 5xx surface splits
+    // the copy into a message span + a "Try again" button, so a loose getByText regex would match
+    // two nodes — strict-mode violation. The role=alert container is the stable contract).
     await expect(page.getByText('Email Sam the Q3 numbers')).toBeHidden();
-    await expect(page.getByText(/couldn.t|try again|something got in the way/i)).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText(/couldn.t|try again|something got in the way/i);
   });
 });
