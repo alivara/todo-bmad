@@ -1,0 +1,100 @@
+import { test, expect, resetTodos } from '../support/fixtures';
+import AxeBuilder from '@axe-core/playwright';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+/**
+ * Accessibility audit (WCAG 2.1 A + AA) via axe-core, run against the real app in a browser.
+ * Scans the app's key visual states — populated list (active + completed + long description),
+ * empty state, and the inline edit-in-place editor — and writes the full axe results to
+ * _bmad-output/test-artifacts/a11y/ for the audit report.
+ *
+ * Assertion policy: the suite guards against ALL WCAG A/AA violations EXCEPT `color-contrast`,
+ * which is a KNOWN, tracked design decision awaiting designer sign-off (see deferred-work.md:
+ * --ink-secondary ~3.8:1 body copy, completed-row --ink-muted ~1.9:1). Contrast findings are
+ * still captured in the report; excluding them here keeps the guard green for regressions in
+ * every OTHER rule (names/roles/labels/landmarks/lang/…) until the palette fix lands.
+ */
+
+const WCAG_AA = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+const OUT_DIR = '../_bmad-output/test-artifacts/a11y';
+
+type Violation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number];
+
+function summarize(v: Violation) {
+  return {
+    id: v.id,
+    impact: v.impact,
+    help: v.help,
+    wcag: v.tags.filter((t) => t.startsWith('wcag')),
+    nodes: v.nodes.length,
+    targets: v.nodes.slice(0, 5).map((n) => n.target.join(' ')),
+  };
+}
+
+function persist(state: string, violations: Violation[]) {
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(`${OUT_DIR}/${state}.json`, JSON.stringify(violations.map(summarize), null, 2));
+}
+
+function assertNoNonContrast(state: string, violations: Violation[]) {
+  persist(state, violations);
+  const contrast = violations.filter((v) => v.id === 'color-contrast');
+  const other = violations.filter((v) => v.id !== 'color-contrast');
+  // Surface everything in the run log for the report.
+  console.log(`[a11y:${state}] total=${violations.length} contrast=${contrast.length} other=${other.length}`);
+  for (const v of violations) console.log(`  - ${v.impact}\t${v.id}\t(${v.nodes.length})\t${v.help}`);
+  expect(
+    other,
+    `non-contrast WCAG A/AA violations in "${state}": ${other.map((v) => v.id).join(', ')}`,
+  ).toEqual([]);
+}
+
+test.describe('@a11y accessibility audit (WCAG 2.1 AA, axe-core)', () => {
+  test.beforeEach(async ({ request }) => {
+    await resetTodos(request);
+  });
+
+  test('a11y-001 populated list — active + completed + long-description rows', async ({ page, request }) => {
+    await request.post('/api/todos', {
+      data: {
+        title: 'Review the Q3 report',
+        description:
+          'Cross-check the figures against last quarter and flag anything that moved more than ten percent so we can discuss it in the Monday sync.',
+      },
+    });
+    const res = await request.post('/api/todos', { data: { title: 'Book the venue' } });
+    const created = await res.json();
+    await request.patch(`/api/todos/${created.id}`, { data: { status: 'completed' } });
+    await request.post('/api/todos', { data: { title: 'Email Sam the numbers' } });
+
+    await page.goto('/');
+    await expect(page.getByRole('checkbox').first()).toBeVisible();
+    await expect(page.getByText('Review the Q3 report')).toBeVisible();
+
+    const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
+    assertNoNonContrast('populated-list', violations);
+  });
+
+  test('a11y-002 empty state', async ({ page }) => {
+    await page.goto('/');
+    // Empty-state copy renders once the (empty) list resolves.
+    await expect(page.getByRole('checkbox')).toHaveCount(0);
+
+    const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
+    assertNoNonContrast('empty-state', violations);
+  });
+
+  test('a11y-003 inline edit-in-place editor open', async ({ page, request }) => {
+    await request.post('/api/todos', {
+      data: { title: 'Edit me for a11y', description: 'a description to edit' },
+    });
+
+    await page.goto('/');
+    // Enter edit mode by activating the title (row becomes the editor).
+    await page.getByText('Edit me for a11y').click();
+    await expect(page.getByRole('textbox', { name: /edit title/i })).toBeVisible();
+
+    const { violations } = await new AxeBuilder({ page }).withTags(WCAG_AA).analyze();
+    assertNoNonContrast('edit-editor', violations);
+  });
+});

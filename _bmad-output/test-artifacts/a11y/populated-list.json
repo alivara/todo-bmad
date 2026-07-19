@@ -1,0 +1,19 @@
+[
+  {
+    "id": "color-contrast",
+    "impact": "serious",
+    "help": "Elements must meet minimum color contrast ratio thresholds",
+    "wcag": [
+      "wcag2aa",
+      "wcag143"
+    ],
+    "nodes": 6,
+    "targets": [
+      "button[type=\"submit\"]",
+      "li:nth-child(1) > div > div > time",
+      "li:nth-child(2) > div > div > p",
+      "li:nth-child(2) > div > div > time",
+      "div > div > button[type=\"button\"]"
+    ]
+  }
+]

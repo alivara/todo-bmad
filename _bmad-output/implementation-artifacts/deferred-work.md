@@ -46,3 +46,11 @@
 - source_spec: `security-review-xss-injection.md` (SEC-3)
   summary: Stored todo text is raw (not HTML-encoded at rest) — correct today because React encodes at render.
   evidence: INFO/forward-guard. Any FUTURE non-React render of todo text (HTML email, CSV/PDF export, server-rendered HTML fragment) MUST apply context-appropriate output encoding, or stored XSS becomes reachable there. Add an encoding step + note in that feature's spec when introduced.
+
+## Deferred from: accessibility audit — WCAG 2.1 AA (2026-07-19, Alivara / QA)
+
+> Full report: `_bmad-output/test-artifacts/a11y/accessibility-audit.md` (axe-core 4.12.1, live scan of current main incl. Story 2.2). Only `color-contrast` flagged; everything else AA-clean. Home: **Story 3.5 (a11y/security floor)**. The `color-contrast` rule is currently EXCLUDED from the passing assertion in `web/tests/e2e/a11y.spec.ts` — drop that exclusion once the palette fix lands to make AA contrast a hard gate.
+
+- source_spec: `accessibility-audit.md` (A11Y-1)
+  summary: color-contrast (WCAG 1.4.3, serious) below AA — CONFIRMS the story-1.3 contrast entries with axe evidence, and adds a NEW node not previously catalogued: the "Add" submit button (`button[type="submit"]`) flags in all three states.
+  evidence: Root causes — `--ink-secondary` (#8a8072 ≈3.8:1: relative time, empty-state copy, edit hint, reveal `more` button); completed-row `--ink-muted` (#b8ae9e ≈1.9:1, now LIVE since Story 2.1 shipped completion); and the "Add" button label/background ratio (verify `--on-accent` on `--accent`). Fix = darken `--ink-secondary` toward ~#6f6656 (≥4.6:1), bump completed-text token ≥4.5:1, and correct the submit-button contrast — all palette/design decisions needing sign-off. Then remove the `color-contrast` exclusion in a11y.spec.ts.
