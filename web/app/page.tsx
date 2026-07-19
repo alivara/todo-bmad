@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { fetchTodos, todosQueryKey } from '@/lib/todos';
 import { AddInput } from './components/AddInput';
 import { EmptyState } from './components/EmptyState';
+import { TodoRow } from './components/TodoRow';
 import { Wordmark } from './components/Wordmark';
 
 export default function HomePage() {
@@ -54,9 +55,8 @@ export default function HomePage() {
       return <EmptyState />;
     }
 
-    // Minimal list fallback. Full row anatomy (description clamp, relative time,
-    // newest-first guarantees) is Story 1.3; Story 1.1's database is empty, so this
-    // is a safety net rather than the real list view.
+    // The full read-only list (Story 1.3). Rendered in the server's received order
+    // (newest-first: created_at DESC, id DESC) — never re-sorted client-side (AD-4).
     return (
       <ul
         style={{
@@ -70,7 +70,7 @@ export default function HomePage() {
       >
         {data.map((todo) => (
           <li key={todo.id} style={rowStyle}>
-            {todo.title}
+            <TodoRow todo={todo} />
           </li>
         ))}
       </ul>

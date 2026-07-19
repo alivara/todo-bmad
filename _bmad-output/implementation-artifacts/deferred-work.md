@@ -11,3 +11,12 @@
 
 - **Over-cap `aria-invalid` has no reason exposed** — `web/app/components/AddInput.tsx:70`: over-cap flips `aria-invalid` true and submit silently no-ops, but there is no `aria-describedby`/message, so a screen-reader user gets "invalid" with no reason. Out of scope by spec — full SR/`aria-live` coverage is UX-DR28 and the visible counter is Story 3.3. Add a visually-hidden helper when 3.3 lands.
 - **`outline:'none'` + permanently-painted focus halo** — `web/app/components/AddInput.tsx:98,103`: the accent-soft ring is unconditional inline `boxShadow` and `outline` is suppressed. Benign in 1.2 (the field is focused-on-load and refocused after every add), but a blurred input still reads as focused and keyboard `:focus-visible` is gone. Revisit when Story 1.3 introduces other focusable rows — move the halo to `:focus`/`:focus-visible`.
+
+## Deferred from: expert review of story-1.3 (2026-07-19, Pixel)
+
+- source_spec: `spec-1-3-view-the-persistent-task-list.md`
+  summary: Body-copy contrast is below WCAG AA — `--ink-secondary` (#8a8072) on `--surface-raised` (#fffcf7) ≈ 3.8:1 for the 14px description and 13px relative time (normal text needs 4.5:1).
+  evidence: Pre-existing brand token (defined in `globals.css` since 1.1); Story 1.3 is the first to render body copy in it, so it surfaced here. Fix is a **design decision** (darken `--ink-secondary` toward ~#6f6656 ≈4.6:1, verified with a contrast tool) — not auto-patched to avoid unilaterally changing the brand palette. Needs designer sign-off.
+- source_spec: `spec-1-3-view-the-persistent-task-list.md`
+  summary: Completed-row text (`--ink-muted` #b8ae9e on #fffcf7 ≈ 1.9:1) is illegible, not merely de-emphasized.
+  evidence: Dormant in 1.3 (no `completed` todos exist until Epic 2 activates completion). When Epic 2 lands the toggle, bump completed text to a token clearing ≥4.5:1 (or ≥3:1 if treated as deprioritized content). `web/app/components/TodoRow.tsx` completedTextStyle.
