@@ -1,0 +1,25 @@
+{
+  "schema_version": "0.1.0",
+  "evaluated_at": "2026-07-19T16:20:16Z",
+  "repo": "todo-app",
+  "target": { "type": "story", "id": "2.1", "label": "Complete a task (toggle with the payoff)" },
+  "collection_status": "COLLECTED",
+  "gate_basis": "priority_thresholds",
+  "gate_status": "CONCERNS",
+  "threshold_result": "PASS",
+  "rationale": "Requirement coverage thresholds PASS (P0 100%, P1 100%, overall 89%). Held at CONCERNS by custom project bars + residual risk: Bar A (>=70% code coverage) is UNVERIFIED (no instrumentation, unmeasured); Bar B (>=5 passing Playwright tests) has 12 cases present but passing is unproven on host; plus the testseed integration is unexecuted, the P2 completed-visual payoff is unasserted, and rollback is proven for 5xx only. Clears to PASS once coverage >=70% is measured/met and the E2E+integration suites run green.",
+  "custom_bars": {
+    "code_coverage_min_70pct": { "status": "UNVERIFIED", "measured": false },
+    "e2e_min_5_passing": { "status": "CONDITIONAL", "present": 12, "passing_verified": false }
+  },
+  "p0_status": "MET",
+  "p1_status": "MET",
+  "overall_status": "MET",
+  "critical_open": 0,
+  "links": {
+    "trace_report_path": "_bmad-output/test-artifacts/traceability/traceability-matrix.md",
+    "trace_report_url": "",
+    "artifact_url": "",
+    "journey_evidence_url": ""
+  }
+}
