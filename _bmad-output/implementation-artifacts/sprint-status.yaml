@@ -59,13 +59,11 @@ development_status:
   1-3-view-the-persistent-task-list: done
   epic-1-retrospective: optional
 
-  # Epic 2: Complete the Task Loop
-  epic-2: in-progress
-  # NOTE: Epic 4 (CI/CD) was prioritized before Epic 2 resumes (see header); Epic 2 was resumed
-  # on explicit request (2.1, 2.2). PR #9 (2.1) merged → done.
+  # Epic 2: Complete the Task Loop — COMPLETE (all stories done; PRs #9/#10/#14 merged 2026-07-19)
+  epic-2: done
   2-1-complete-a-task-toggle-with-the-payoff: done
   2-2-edit-a-task-in-place: done
-  2-3-delete-a-task-with-undo: review
+  2-3-delete-a-task-with-undo: done
   epic-2-retrospective: optional
 
   # Epic 3: Trustworthy, Polished Experience
